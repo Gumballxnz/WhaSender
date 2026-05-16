@@ -25,8 +25,18 @@ function Dispatch() {
   async function loadData() {
     setLoading(true);
     try {
-      const [cRes, sRes, botRes] = await Promise.all([api.get('/contacts'), api.get('/settings'), api.get('/bot/status')]);
-      setContacts(cRes.data.filter(c => c.active));
+      const [cRes, sRes, botRes, fRes] = await Promise.all([
+        api.get('/contacts'), 
+        api.get('/settings'), 
+        api.get('/bot/status'),
+        api.get('/files')
+      ]);
+      
+      const availableFiles = new Set(fRes.data.files.map(f => f.name));
+      const activeContacts = cRes.data.filter(c => c.active);
+      const dispatchableContacts = activeContacts.filter(c => availableFiles.has(c.file_name));
+      
+      setContacts(dispatchableContacts);
       setDelaySeconds(Math.round(parseInt(sRes.data.delay_ms || 30000) / 1000));
       setMaxCount(parseInt(sRes.data.max_per_dispatch || 104));
       setBatchSize(parseInt(sRes.data.batch_size || 0));
