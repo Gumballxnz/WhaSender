@@ -69,7 +69,13 @@ function Dispatch() {
   const totalEstSeconds = totalDelaySeconds + totalPauseSeconds;
   const estH = Math.floor(totalEstSeconds / 3600);
   const estM = Math.floor((totalEstSeconds % 3600) / 60);
-  const estStr = estH > 0 ? `${estH}h ${estM}m` : `${estM}m`;
+  
+  let estStr = '0m';
+  if (totalEstSeconds > 0) {
+    if (estH > 0) estStr = `${estH}h ${estM}m`;
+    else if (estM > 0) estStr = `${estM}m`;
+    else estStr = '< 1m';
+  }
 
   return (
     <div>
