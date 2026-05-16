@@ -60,10 +60,11 @@ function Dispatch() {
   
   let totalDelaySeconds = (preview.length > 0 ? preview.length - 1 : 0) * delaySeconds;
   let totalPauseSeconds = 0;
+  let actualPauses = 0;
   if (batchSize > 0 && preview.length > batchSize) {
-    let pauses = Math.floor((preview.length - 1) / batchSize);
-    if (maxPauses > 0 && pauses > maxPauses) pauses = maxPauses;
-    totalPauseSeconds = pauses * batchPauseMins * 60;
+    actualPauses = Math.floor((preview.length - 1) / batchSize);
+    if (maxPauses > 0 && actualPauses > maxPauses) actualPauses = maxPauses;
+    totalPauseSeconds = actualPauses * batchPauseMins * 60;
   }
   const totalEstSeconds = totalDelaySeconds + totalPauseSeconds;
   const estH = Math.floor(totalEstSeconds / 3600);
@@ -83,7 +84,13 @@ function Dispatch() {
           {batchSize > 0 && (
             <>
               <div className="input-group"><label>Tempo de Pausa (minutos)</label><input type="number" className="input input-mono" value={batchPauseMins} onChange={e => setBatchPauseMins(Math.max(1, parseInt(e.target.value) || 1))} min={1} /></div>
-              <div className="input-group"><label>Limite Máximo de Pausas (0 = infinito)</label><input type="number" className="input input-mono" value={maxPauses} onChange={e => setMaxPauses(Math.max(0, parseInt(e.target.value) || 0))} min={0} /></div>
+              <div className="input-group">
+                <label>Limite Máximo de Pausas (0 = infinito)</label>
+                <input type="number" className="input input-mono" value={maxPauses} onChange={e => setMaxPauses(Math.max(0, parseInt(e.target.value) || 0))} min={0} />
+                <div style={{fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px'}}>
+                  💡 Com {preview.length} contatos a enviar, o bot fará <strong>{actualPauses} pausa{actualPauses !== 1 ? 's' : ''}</strong> reais.
+                </div>
+              </div>
             </>
           )}
         </div>
@@ -91,7 +98,13 @@ function Dispatch() {
           <div className="card-header"><span className="card-title">Resumo</span><div className="card-icon blue"><FileSpreadsheet size={20} /></div></div>
           <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
             <div style={{display:'flex',alignItems:'center',gap:'10px'}}><Users size={18} color="var(--accent)" /><div><div className="mono" style={{fontSize:'18px',fontWeight:600}}>{preview.length}</div><div className="card-label">contatos a enviar</div></div></div>
-            <div style={{display:'flex',alignItems:'center',gap:'10px'}}><Clock size={18} color="var(--warning)" /><div><div className="mono" style={{fontSize:'18px',fontWeight:600}}>~{estStr}</div><div className="card-label">estimado</div></div></div>
+            <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+              <Clock size={18} color="var(--warning)" />
+              <div>
+                <div className="mono" style={{fontSize:'18px',fontWeight:600}}>~{estStr}</div>
+                <div className="card-label">estimado {actualPauses > 0 ? `(c/ ${actualPauses} pausa${actualPauses > 1 ? 's' : ''})` : ''}</div>
+              </div>
+            </div>
           </div>
           <button className="btn btn-primary btn-lg" style={{width:'100%',justifyContent:'center',marginTop:'20px'}} onClick={startDispatch} disabled={dispatching || preview.length === 0 || botStatus !== 'connected'}>
             {dispatching ? <><Loader2 size={20} style={{animation:'spin 1s linear infinite'}} /> Disparando...</> : <><Play size={20} /> Iniciar Disparo</>}
