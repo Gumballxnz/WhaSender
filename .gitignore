@@ -1,0 +1,14 @@
+node_modules/
+.env
+.DS_Store
+*.key
+*.pem
+MEMORIA_DO_PROJETO.md
+
+# Ignorar dados sensíveis do Whasender
+whasender/data/
+whasender/bot/src/session/
+whasender/frontend/node_modules/
+whasender/api/node_modules/
+whasender/bot/node_modules/
+whasender/frontend/dist/
