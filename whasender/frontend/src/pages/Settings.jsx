@@ -9,12 +9,22 @@ import api from '../services/api';
 function Settings() {
   const [settings, setSettings] = useState({ delay_ms: '30000', schedule_time: '15:00', schedule_enabled: 'false', max_per_dispatch: '104' });
   const [saving, setSaving] = useState(false);
-  const [passwordForm, setPasswordForm] = useState({ current: '', newPass: '', confirm: '' });
+  const [totalContacts, setTotalContacts] = useState(0);
+  const [botStatus, setBotStatus] = useState('Verificando...');
 
   useEffect(() => { loadSettings(); }, []);
 
   async function loadSettings() {
-    try { const { data } = await api.get('/settings'); setSettings(data); }
+    try { 
+      const [sRes, cRes, bRes] = await Promise.all([
+        api.get('/settings'),
+        api.get('/contacts'),
+        api.get('/bot/status')
+      ]);
+      setSettings(sRes.data);
+      setTotalContacts(cRes.data.filter(c => c.active).length);
+      setBotStatus(bRes.data.status);
+    }
     catch { toast.error('Erro ao carregar configurações'); }
   }
 
@@ -55,24 +65,33 @@ function Settings() {
           <div className="card-header"><span className="card-title">Parâmetros de Envio</span><div className="card-icon green"><Zap size={20} /></div></div>
           <div className="input-group">
             <label>Delay entre envios: <strong className="mono">{delaySeconds}s</strong></label>
-            <input type="range" min={5} max={120} value={delaySeconds}
+            <input type="range" min={5} max={1200} value={delaySeconds}
               onChange={e => setSettings({ ...settings, delay_ms: String(e.target.value * 1000) })}
               style={{ width: '100%', accentColor: 'var(--accent)' }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)' }}><span>5s</span><span>120s</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)' }}><span>5s</span><span>1200s (20m)</span></div>
           </div>
           <div className="input-group">
             <label>Quantidade máxima por disparo</label>
-            <input type="number" className="input input-mono" value={settings.max_per_dispatch || 104}
-              onChange={e => setSettings({ ...settings, max_per_dispatch: e.target.value })} min={1} max={999} />
+            <input type="text" className="input input-mono" value={`${totalContacts} (Automático)`} disabled style={{ opacity: 0.7 }} />
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+              💡 Sincronizado dinamicamente com os contatos e arquivos disponíveis.
+            </div>
           </div>
         </div>
 
         {/* Status do Bot */}
         <div className="card">
-          <div className="card-header"><span className="card-title">Bot WhatsApp</span><div className="card-icon blue"><SettingsIcon size={20} /></div></div>
+          <div className="card-header">
+            <span className="card-title">Bot WhatsApp</span>
+            <div className={`card-icon ${botStatus === 'connected' ? 'green' : 'red'}`}><SettingsIcon size={20} /></div>
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <button className="btn btn-secondary" onClick={async () => { try { const { data } = await api.get('/bot/status'); toast.success(`Status: ${data.status}`); } catch { toast.error('Erro'); } }}>
-              Verificar Conexão
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--bg-input)', padding: '12px', borderRadius: 'var(--radius-md)' }}>
+              <div className={`status-dot ${botStatus}`}></div>
+              <span style={{ fontSize: '14px', fontWeight: 500, textTransform: 'capitalize' }}>{botStatus === 'connected' ? 'Conectado' : botStatus === 'disconnected' ? 'Desconectado' : botStatus}</span>
+            </div>
+            <button className="btn btn-secondary" onClick={async () => { try { const { data } = await api.get('/bot/status'); setBotStatus(data.status); toast.success(`Status atualizado!`); } catch { toast.error('Erro'); } }}>
+              Atualizar Status
             </button>
           </div>
         </div>
