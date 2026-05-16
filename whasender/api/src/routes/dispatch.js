@@ -88,19 +88,27 @@ function toJid(phone) {
  * Montar a fila de envio (reutilizada por start e resume)
  */
 function buildQueue(maxCount) {
-  const availableFiles = new Set(fs.readdirSync(FILES_PATH).filter(f => f.endsWith('.xlsx')));
+  const fileNamesFromDisk = fs.readdirSync(FILES_PATH).filter(f => f.toLowerCase().endsWith('.xlsx'));
+  
+  // Mapa: chave (minúscula) -> valor (nome real no disco)
+  const realFileNamesMap = new Map();
+  fileNamesFromDisk.forEach(f => realFileNamesMap.set(f.toLowerCase(), f));
+
   const allActiveContacts = db.prepare('SELECT * FROM contacts WHERE active = 1 ORDER BY id ASC').all();
 
   return allActiveContacts
-    .filter(c => availableFiles.has(c.file_name))
+    .filter(c => realFileNamesMap.has((c.file_name || '').toLowerCase()))
     .slice(0, maxCount)
-    .map(c => ({
-      jid: toJid(c.phone),
-      filePath: path.join(FILES_PATH, c.file_name),
-      fileName: c.file_name,
-      contactName: c.name,
-      contactId: c.id,
-    }));
+    .map(c => {
+      const realDiskFileName = realFileNamesMap.get((c.file_name || '').toLowerCase());
+      return {
+        jid: toJid(c.phone),
+        filePath: path.join(FILES_PATH, realDiskFileName),
+        fileName: realDiskFileName,
+        contactName: c.name,
+        contactId: c.id,
+      };
+    });
 }
 
 /**

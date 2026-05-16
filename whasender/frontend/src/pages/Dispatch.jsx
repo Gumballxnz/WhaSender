@@ -32,13 +32,15 @@ function Dispatch() {
         api.get('/files')
       ]);
       
-      const availableFiles = new Set(fRes.data.files.map(f => f.name));
+      // Usar lowercase para evitar problemas de case sensitivity (Linux)
+      const availableFiles = new Set(fRes.data.files.map(f => f.name.toLowerCase()));
       const activeContacts = cRes.data.filter(c => c.active);
-      const dispatchableContacts = activeContacts.filter(c => availableFiles.has(c.file_name));
+      const dispatchableContacts = activeContacts.filter(c => availableFiles.has(c.file_name.toLowerCase()));
       
       setContacts(dispatchableContacts);
       setDelaySeconds(Math.round(parseInt(sRes.data.delay_ms || 30000) / 1000));
-      setMaxCount(parseInt(sRes.data.max_per_dispatch || 104));
+      // Sempre usar o máximo real disponível de contatos ativos no banco
+      setMaxCount(activeContacts.length > 0 ? activeContacts.length : 106);
       setBatchSize(parseInt(sRes.data.batch_size || 0));
       setBatchPauseMins(parseInt(sRes.data.batch_pause_minutes || 10));
       setMaxPauses(parseInt(sRes.data.max_pauses || 0));
