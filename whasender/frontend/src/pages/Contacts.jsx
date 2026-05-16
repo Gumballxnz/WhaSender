@@ -74,7 +74,10 @@ function Contacts() {
 
   return (
     <div>
-      <div className="page-header"><h2>Contatos</h2><p>Gerenciar contatos e mapeamento de arquivos</p></div>
+      <div className="page-header">
+        <h2>Contatos <span style={{ fontSize: '18px', color: 'var(--text-muted)', fontWeight: 500 }}>({contacts.length})</span></h2>
+        <p>Gerenciar contatos e mapeamento de arquivos</p>
+      </div>
       <div className="table-container">
         <div className="table-toolbar">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, maxWidth: '320px' }}>
