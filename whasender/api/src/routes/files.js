@@ -20,7 +20,9 @@ const storage = multer.diskStorage({
     cb(null, FILES_PATH);
   },
   filename: (req, file, cb) => {
-    cb(null, file.originalname);
+    // Segurança máxima: path.basename remove qualquer tentativa de Path Traversal (ex: ../../../etc/passwd.xlsx)
+    const safeName = path.basename(file.originalname);
+    cb(null, safeName);
   }
 });
 
