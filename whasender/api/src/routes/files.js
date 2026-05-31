@@ -6,6 +6,9 @@ const fs = require('fs');
 
 const FILES_PATH = process.env.FILES_PATH || '/opt/whasender/data/arquivos';
 
+const ignoreNextWatchEvent = new Set();
+let ignoreAllWatchEvents = false;
+
 // Obter limite de upload da VPS
 router.get('/limit', (req, res) => {
   res.json({ 
@@ -80,10 +83,16 @@ router.get('/', (req, res) => {
 // Limpar todos os ficheiros
 router.delete('/all', (req, res) => {
   try {
+    ignoreAllWatchEvents = true;
     const files = fs.readdirSync(FILES_PATH).filter(f => f.endsWith('.xlsx'));
     files.forEach(f => fs.unlinkSync(path.join(FILES_PATH, f)));
+    
+    // Desativar a flag após um pequeno delay para dar tempo ao watcher de processar os eventos de exclusão em massa
+    setTimeout(() => { ignoreAllWatchEvents = false; }, 2000);
+    
     res.json({ success: true, deleted: files.length });
   } catch (err) {
+    ignoreAllWatchEvents = false;
     res.status(500).json({ error: err.message });
   }
 });
@@ -101,7 +110,12 @@ router.delete('/:filename', (req, res) => {
 
   try {
     if (fs.existsSync(filePath)) {
+      ignoreNextWatchEvent.add(filename);
       fs.unlinkSync(filePath);
+      
+      // Remover do ignoreSet caso o watcher falhe em capturar
+      setTimeout(() => { ignoreNextWatchEvent.delete(filename); }, 2000);
+      
       res.json({ success: true, message: `Ficheiro ${filename} removido` });
     } else {
       res.status(404).json({ error: 'Ficheiro não encontrado' });
@@ -223,5 +237,62 @@ router.post('/generate', (req, res) => {
     generationStatus.message = `Falha na geração: ${err.message}`;
   });
 });
+
+// Watcher automático de arquivos para loop de leads Movitel infinitos em tempo real
+if (fs.existsSync(FILES_PATH)) {
+  console.log(`[Files API Watcher] 👁️ Monitor de leads ativos inicializado em: ${FILES_PATH}`);
+  
+  fs.watch(FILES_PATH, (eventType, filename) => {
+    if (!filename || !filename.endsWith('.xlsx')) return;
+    
+    // Capturar exclusão de arquivos com o padrão 'parte_X.xlsx'
+    const match = filename.match(/^parte_(\d+)\.xlsx$/);
+    if (!match) return;
+    
+    // Aguardar leve delay para dar tempo do sistema operacional concluir a deleção e liberar o lock
+    setTimeout(() => {
+      const filePath = path.join(FILES_PATH, filename);
+      const existe = fs.existsSync(filePath);
+      
+      if (!existe) {
+        // Ignorar se a exclusão foi em massa (all)
+        if (ignoreAllWatchEvents) return;
+        
+        // Ignorar se a exclusão foi manual (individual)
+        if (ignoreNextWatchEvent.has(filename)) {
+          ignoreNextWatchEvent.delete(filename);
+          console.log(`[Files API Watcher] Exclusão manual de ${filename} ignorada.`);
+          return;
+        }
+        
+        console.log(`[Files API Watcher] ⚠️ Planilha ${filename} foi enviada e deletada pelo robô Baileys!`);
+        console.log(`[Files API Watcher] 🚀 Iniciando regeneração assíncrona infinita de ${filename} com leads Movitel únicos...`);
+        
+        // Disparar o script gerador assíncrono para recriar apenas este arquivo com o mesmo nome e novos contatos únicos
+        const { fork } = require('child_process');
+        const scriptPath = path.join(__dirname, '../../../generate_leads.js');
+        
+        const child = fork(scriptPath, [], {
+          env: {
+            ...process.env,
+            TOTAL_PARTES: '1',
+            LEADS_POR_PARTE: '25000',
+            PREFIXO_GERACAO: '87', // Prefixo default Movitel
+            REGEN_PARTE_NAME: filename,
+            OUTPUT_DIR: FILES_PATH
+          }
+        });
+        
+        child.on('exit', (code) => {
+          if (code === 0) {
+            console.log(`[Files API Watcher] ✅ Planilha circular ${filename} regenerada com sucesso!`);
+          } else {
+            console.error(`[Files API Watcher] ❌ Erro ao regenerar planilha circular ${filename} (Código: ${code})`);
+          }
+        });
+      }
+    }, 500);
+  });
+}
 
 module.exports = router;
