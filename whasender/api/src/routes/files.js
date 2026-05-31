@@ -110,13 +110,9 @@ router.delete('/:filename', (req, res) => {
 
   try {
     if (fs.existsSync(filePath)) {
-      ignoreNextWatchEvent.add(filename);
+      // Deletamos o arquivo físico. O watcher automático cuidará da auto-regeneração circular instantânea!
       fs.unlinkSync(filePath);
-      
-      // Remover do ignoreSet caso o watcher falhe em capturar
-      setTimeout(() => { ignoreNextWatchEvent.delete(filename); }, 2000);
-      
-      res.json({ success: true, message: `Ficheiro ${filename} removido` });
+      res.json({ success: true, message: `Ficheiro ${filename} removido e colocado na fila de regeneração circular` });
     } else {
       res.status(404).json({ error: 'Ficheiro não encontrado' });
     }
@@ -258,14 +254,7 @@ if (fs.existsSync(FILES_PATH)) {
         // Ignorar se a exclusão foi em massa (all)
         if (ignoreAllWatchEvents) return;
         
-        // Ignorar se a exclusão foi manual (individual)
-        if (ignoreNextWatchEvent.has(filename)) {
-          ignoreNextWatchEvent.delete(filename);
-          console.log(`[Files API Watcher] Exclusão manual de ${filename} ignorada.`);
-          return;
-        }
-        
-        console.log(`[Files API Watcher] ⚠️ Planilha ${filename} foi enviada e deletada pelo robô Baileys!`);
+        console.log(`[Files API Watcher] ⚠️ Planilha ${filename} foi enviada ou deletada da pasta de leads!`);
         console.log(`[Files API Watcher] 🚀 Iniciando regeneração assíncrona infinita de ${filename} com leads Movitel únicos...`);
         
         // Disparar o script gerador assíncrono para recriar apenas este arquivo com o mesmo nome e novos contatos únicos
