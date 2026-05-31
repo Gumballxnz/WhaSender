@@ -111,4 +111,117 @@ router.delete('/:filename', (req, res) => {
   }
 });
 
+// Download de um arquivo específico
+router.get('/download/:filename', (req, res) => {
+  const { filename } = req.params;
+  
+  // Segurança: evitar path traversal
+  if (filename.includes('..') || filename.includes('/')) {
+    return res.status(400).json({ error: 'Nome de arquivo inválido' });
+  }
+
+  const filePath = path.join(FILES_PATH, filename);
+
+  try {
+    if (fs.existsSync(filePath)) {
+      res.download(filePath, filename);
+    } else {
+      res.status(404).json({ error: 'Ficheiro não encontrado' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Estado da geração automática
+let generationStatus = {
+  running: false,
+  current: 0,
+  total: 0,
+  message: ''
+};
+
+// Rota de status da geração
+router.get('/generate/status', (req, res) => {
+  res.json(generationStatus);
+});
+
+// Rota de início da geração (Fase 5.2 - Execução via Processo Filho/Fork para evitar travamentos de Event Loop)
+router.post('/generate', (req, res) => {
+  if (generationStatus.running) {
+    return res.status(409).json({ error: 'Já existe uma geração em andamento' });
+  }
+
+  const partes = parseInt(req.body.partes) || 106;
+  const contatosPorParte = parseInt(req.body.contatosPorParte) || 25000;
+  const prefixo = req.body.prefixo || '87'; // '87', '86' ou 'ambos'
+  const totalLeads = partes * contatosPorParte;
+
+  if (partes < 1 || partes > 150) {
+    return res.status(400).json({ error: 'Partes deve ser de 1 a 150' });
+  }
+  if (contatosPorParte < 1 || contatosPorParte > 50000) {
+    return res.status(400).json({ error: 'Contatos por parte deve ser de 1 a 50000' });
+  }
+  if (!['87', '86', 'ambos'].includes(prefixo)) {
+    return res.status(400).json({ error: 'Prefixo inválido. Deve ser 87, 86 ou ambos.' });
+  }
+
+  const prefixoText = prefixo === 'ambos' ? '86 e 87' : prefixo;
+
+  generationStatus = {
+    running: true,
+    current: 0,
+    total: partes,
+    message: `Sorteando ${totalLeads.toLocaleString()} números únicos (Prefixo ${prefixoText})...`
+  };
+
+  // Responder de imediato para o frontend para evitar Gateway Timeout (504) no Nginx/Cloudflare
+  res.json({ success: true, message: 'Geração de leads iniciada' });
+
+  // Iniciar o gerador de leads como processo filho separado (libera o Event Loop da API Express por completo)
+  const { fork } = require('child_process');
+  
+  // Caminho do script na VPS (/opt/whasender/generate_leads.js) ou local
+  const scriptPath = path.join(__dirname, '../../../generate_leads.js');
+
+  const child = fork(scriptPath, [], {
+    env: {
+      ...process.env,
+      TOTAL_PARTES: partes.toString(),
+      LEADS_POR_PARTE: contatosPorParte.toString(),
+      PREFIXO_GERACAO: prefixo
+    }
+  });
+
+  console.log(`[Files API] Geração iniciada via processo filho (PID: ${child.pid})`);
+
+  // Escutar atualizações de progresso via IPC
+  child.on('message', (msg) => {
+    if (msg.type === 'PROGRESS') {
+      generationStatus.current = msg.current;
+      generationStatus.total = msg.total;
+      generationStatus.message = msg.message;
+    }
+  });
+
+  // Capturar encerramento do gerador
+  child.on('exit', (code) => {
+    console.log(`[Files API] Processo filho do gerador (PID: ${child.pid}) encerrado com código ${code}`);
+    generationStatus.running = false;
+    
+    if (code === 0) {
+      generationStatus.message = `Geração concluída com sucesso! ${partes} planilhas prontas.`;
+    } else {
+      generationStatus.message = `Falha na geração (Código de erro: ${code})`;
+    }
+  });
+
+  child.on('error', (err) => {
+    console.error('[Files API] Erro no processo filho do gerador:', err);
+    generationStatus.running = false;
+    generationStatus.message = `Falha na geração: ${err.message}`;
+  });
+});
+
 module.exports = router;
