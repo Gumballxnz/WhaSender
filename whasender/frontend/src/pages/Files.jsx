@@ -450,24 +450,26 @@ export default function Files() {
               </div>
             ) : (
               <div className="table-container" style={{ border: 'none', background: 'none', padding: 0 }}>
-                <table style={{ fontSize: '13px' }}>
+                <table style={{ fontSize: '13px', tableLayout: 'fixed', width: '100%' }}>
                   <thead>
                     <tr>
-                      <th>Arquivo</th>
-                      <th style={{ textAlign: 'right' }}>Ações</th>
+                      <th style={{ textAlign: 'left' }}>Arquivo</th>
+                      <th style={{ textAlign: 'right', width: '80px', minWidth: '80px' }}>Ações</th>
                     </tr>
                   </thead>
                   <tbody>
                     {vpsFiles.map(f => (
                       <tr key={f.name}>
-                        <td className="mono">{f.name}</td>
-                        <td style={{ textAlign: 'right' }}>
-                          <div style={{ display: 'inline-flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                            <button onClick={() => handleDownload(f.name)} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: '4px', display: 'inline-flex' }} title="Baixar planilha">
-                              <Download size={14} />
+                        <td className="mono" style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', textAlign: 'left' }} title={f.name}>
+                          {f.name}
+                        </td>
+                        <td style={{ textAlign: 'right', width: '80px', minWidth: '80px' }}>
+                          <div style={{ display: 'inline-flex', gap: '12px', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'nowrap' }}>
+                            <button onClick={() => handleDownload(f.name)} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: '6px', display: 'inline-flex' }} title="Baixar planilha">
+                              <Download size={15} />
                             </button>
-                            <button onClick={() => confirmDeleteFile(f.name)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '4px', display: 'inline-flex' }} title="Excluir planilha">
-                              <Trash2 size={14} />
+                            <button onClick={() => confirmDeleteFile(f.name)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '6px', display: 'inline-flex' }} title="Excluir planilha">
+                              <Trash2 size={15} />
                             </button>
                           </div>
                         </td>
