@@ -37,8 +37,6 @@ async function generate() {
     process.send({ type: 'PROGRESS', current: 0, total: TOTAL_PARTES, message: `Sorteando ${TOTAL_LEADS.toLocaleString()} leads únicos...` });
   }
 
-  const numerosSet = new Set();
-  
   // Obter prefixo a ser gerado ('87', '86' ou 'ambos')
   const PREFIXO_GERACAO = process.env.PREFIXO_GERACAO || '87';
   const prefixos = [];
@@ -53,17 +51,53 @@ async function generate() {
   // Regex para encontrar 5 ou mais dígitos idênticos consecutivos (ex: 11111, 22222, etc.)
   const regexRepeticao = /(\d)\1{4,}/;
 
-  while (numerosSet.size < TOTAL_LEADS) {
-    // Escolher prefixo aleatório (86 ou 87)
+  // Sorteio de inteiros puros (unicidade ultra-rápida, sem manipulação pesada de strings)
+  const sufixosSet = new Set();
+  while (sufixosSet.size < TOTAL_LEADS) {
+    const r = Math.floor(Math.random() * 10000000);
+    sufixosSet.add(r);
+  }
+
+  // Converter inteiros em números de telefone formatados com o prefixo
+  const numerosSet = new Set();
+  
+  // Função rápida de formatação de 7 dígitos (muito mais rápida que padStart)
+  function format7(val) {
+    if (val < 10) return '000000' + val;
+    if (val < 100) return '00000' + val;
+    if (val < 1000) return '0000' + val;
+    if (val < 10000) return '000' + val;
+    if (val < 100000) return '00' + val;
+    if (val < 1000000) return '0' + val;
+    return '' + val;
+  }
+
+  // Preencher os números completos
+  for (const sufixoVal of sufixosSet) {
     const prefixo = prefixos[Math.floor(Math.random() * prefixos.length)];
-    const sufixo = Math.floor(Math.random() * 10000000).toString().padStart(7, '0');
-    const numeroCompleto = `+${prefixo}${sufixo}`;
-    
-    // Validar se possui 5 ou mais repetições consecutivas do mesmo dígito
+    const sufixoStr = format7(sufixoVal);
+    const numeroCompleto = `+${prefixo}${sufixoStr}`;
+
+    // Validar se possui 5 ou mais repetições consecutivas
     if (regexRepeticao.test(numeroCompleto)) {
-      continue; // Descartar e gerar outro
+      continue; // Descartar
     }
-    
+    numerosSet.add(numeroCompleto);
+  }
+
+  sufixosSet.clear(); // liberar memória
+
+  // Se algum número falhou na regex, o Set de números completos será ligeiramente menor que TOTAL_LEADS.
+  // Vamos completar os números que faltam sorteando novos de forma rápida
+  while (numerosSet.size < TOTAL_LEADS) {
+    const prefixo = prefixos[Math.floor(Math.random() * prefixos.length)];
+    const sufixoVal = Math.floor(Math.random() * 10000000);
+    const sufixoStr = format7(sufixoVal);
+    const numeroCompleto = `+${prefixo}${sufixoStr}`;
+
+    if (regexRepeticao.test(numeroCompleto)) {
+      continue;
+    }
     numerosSet.add(numeroCompleto);
   }
 
