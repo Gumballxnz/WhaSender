@@ -26,8 +26,8 @@ api.interceptors.response.use(
   async (err) => {
     const originalReq = err.config;
 
-    // Se recebeu 401 e não é retry, tentar renovar o token
-    if (err.response?.status === 401 && !originalReq._retry) {
+    // Se recebeu 401 ou 403 e não é retry, tentar renovar o token
+    if ((err.response?.status === 401 || err.response?.status === 403) && !originalReq._retry) {
       originalReq._retry = true;
 
       try {
