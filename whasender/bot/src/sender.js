@@ -7,6 +7,21 @@ const fs = require('fs');
 const path = require('path');
 
 /**
+ * Limita o tempo de execução de uma Promise (evita travamentos na rede)
+ */
+function promiseWithTimeout(promise, ms, errorMsg = 'Timeout da operação esgotado') {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(errorMsg));
+    }, ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    clearTimeout(timeoutId);
+  });
+}
+
+/**
  * Envia a fila de arquivos sequencialmente com delay entre envios
  * @param {function} getSock — função que retorna a instância ativa do Baileys
  * @param {Array<{jid: string, filePath: string, fileName: string, contactName: string}>} queue
@@ -59,11 +74,16 @@ async function sendQueue(getSock, queue, delayMs, onProgress, control, startInde
         }
 
         try {
-          await activeSock.sendMessage(item.jid, {
-            document: fileBuffer,
-            mimetype: mimeType,
-            fileName: item.fileName,
-          });
+          // Timeout rígido de 35 segundos para impedir travamento em hung promises do Baileys
+          await promiseWithTimeout(
+            activeSock.sendMessage(item.jid, {
+              document: fileBuffer,
+              mimetype: mimeType,
+              fileName: item.fileName,
+            }),
+            35000,
+            'Timeout ao tentar enviar mensagem via Baileys'
+          );
           enviadoComSucesso = true;
 
           // ✅ SUCESSO — deletar ficheiro imediatamente para economizar espaço

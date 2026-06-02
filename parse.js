@@ -18,9 +18,20 @@ for (let i = 0; i < data.length; i++) {
   let phone = phoneVal.replace(/\D/g, '');
   if (phone.length >= 8) {
     if (!phone.startsWith('258')) phone = '258' + phone;
-    numbers.push({ originalName: name, phone: phone });
+    
+    // Extrair o número presente no nome do contato (ex: "Ola 5" -> 5)
+    const match = name.match(/\d+/);
+    let partNum = i + 1; // Fallback sequencial se não houver dígito
+    if (match) {
+      partNum = parseInt(match[0]);
+    }
+
+    numbers.push({ originalName: name, phone: phone, partNum: partNum });
   }
 }
+
+// Ordenar os contatos pelo número da parte numericamente ascendente (parte_1, parte_2, etc.)
+numbers.sort((a, b) => a.partNum - b.partNum);
 
 if (numbers.length > 104) numbers = numbers.slice(0, 104);
 
@@ -31,8 +42,8 @@ jsScript += `const insertMany = db.transaction((contacts) => {\n`;
 jsScript += `  for (const c of contacts) stmt.run(c.name, c.phone, c.file_name, c.active);\n`;
 jsScript += `});\n`;
 jsScript += `const data = [\n`;
-for(let i=0; i<numbers.length; i++) {
-  jsScript += `  { name: 'ola ${i+1}', phone: '${numbers[i].phone}', file_name: 'parte_${i+1}.xlsx', active: 1 },\n`;
+for (let i = 0; i < numbers.length; i++) {
+  jsScript += `  { name: '${numbers[i].originalName}', phone: '${numbers[i].phone}', file_name: 'parte_${numbers[i].partNum}.xlsx', active: 1 },\n`;
 }
 jsScript += `];\n`;
 jsScript += `insertMany(data);\n`;
@@ -40,3 +51,4 @@ jsScript += `db.prepare("UPDATE settings SET value='104' WHERE key='max_per_disp
 jsScript += `console.log('Inseridos ' + data.length + ' contatos.');\n`;
 
 fs.writeFileSync('f:/SITES E SAAS/CLONE SITES CLIENTES/automaçao/whasender/populate.js', jsScript);
+
