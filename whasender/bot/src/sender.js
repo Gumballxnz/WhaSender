@@ -1,6 +1,8 @@
 /**
  * WhaSender — Lógica de envio de arquivos
  * Lê cada arquivo do disco individualmente para economizar RAM
+ * CORREÇÃO: Arquivos são coletados para deleção em lote após o disparo completo,
+ * evitando race condition com o Watcher de regeneração circular.
  */
 
 const fs = require('fs');
@@ -36,10 +38,15 @@ async function sendQueue(getSock, queue, delayMs, onProgress, control, startInde
   let sentInBatch = 0;
   let pausesTaken = 0;
 
+  // Lista de arquivos enviados com sucesso — serão deletados em lote no final
+  const arquivosParaDeletar = [];
+
   for (let i = startIndex; i < queue.length; i++) {
     // Verificar se o disparo foi cancelado
     if (control.stop) {
       onProgress({ sent: i, total, current: null, status: 'STOPPED', currentIndex: i });
+      // Deletar os arquivos que já foram enviados com sucesso mesmo no stop
+      deletarArquivosEmLote(arquivosParaDeletar);
       return;
     }
 
@@ -48,7 +55,7 @@ async function sendQueue(getSock, queue, delayMs, onProgress, control, startInde
     try {
       // Verificar se o arquivo existe antes de tentar enviar
       if (!fs.existsSync(item.filePath)) {
-        throw new Error(`Arquivo não encontrado: ${item.filePath}`);
+        throw new Error('Arquivo não encontrado: ' + item.filePath);
       }
 
       // Ler o arquivo do disco (não manter em memória)
@@ -59,12 +66,15 @@ async function sendQueue(getSock, queue, delayMs, onProgress, control, startInde
 
       // Sistema de tentativas (Retry) em caso de queda de conexão
       let tentativas = 0;
-      let maxTentativas = 6; // Aguarda até 30 segundos (6 x 5s) para o bot reconectar
+      let maxTentativas = 20; // Aguarda até 100 segundos (20 x 5s) para o bot reconectar
       let enviadoComSucesso = false;
       let ultimoErro = null;
 
       while (!enviadoComSucesso && tentativas < maxTentativas) {
-        if (control.stop) return;
+        if (control.stop) {
+          deletarArquivosEmLote(arquivosParaDeletar);
+          return;
+        }
         
         const activeSock = getSock();
         if (!activeSock) {
@@ -86,13 +96,9 @@ async function sendQueue(getSock, queue, delayMs, onProgress, control, startInde
           );
           enviadoComSucesso = true;
 
-          // ✅ SUCESSO — deletar ficheiro imediatamente para economizar espaço
-          try {
-            fs.unlinkSync(item.filePath);
-            console.log(`[DELETE] ${item.fileName} removido após envio bem-sucedido`);
-          } catch (deleteErr) {
-            console.error(`[DELETE_ERROR] Não foi possível deletar ${item.fileName}:`, deleteErr.message);
-          }
+          // ✅ SUCESSO — adicionar à lista de deleção (será deletado no final do disparo)
+          arquivosParaDeletar.push(item.filePath);
+          console.log(`[QUEUE] ${item.fileName} marcado para deleção após o disparo completo`);
 
         } catch (e) {
           ultimoErro = e;
@@ -108,7 +114,22 @@ async function sendQueue(getSock, queue, delayMs, onProgress, control, startInde
       }
 
       if (!enviadoComSucesso) {
-        // ❌ FALHA DEFINITIVA — NÃO deletar ficheiro para permitir reenvio manual
+        // ❌ FALHA DEFINITIVA — Se foi por falta de conexão, parar o disparo
+        const isConnectionError = !getSock();
+        if (isConnectionError) {
+          console.log('[Bot] Conexão perdida permanentemente durante o envio. Forçando parada.');
+          control.stop = true;
+          onProgress({ 
+            sent: i, 
+            total, 
+            current: null, 
+            status: 'STOPPED', 
+            currentIndex: i,
+            error: 'Disparo pausado: Sem conexão com o WhatsApp após várias tentativas.'
+          });
+          deletarArquivosEmLote(arquivosParaDeletar);
+          return;
+        }
         throw ultimoErro || new Error('Tempo esgotado aguardando reconexão');
       }
 
@@ -154,7 +175,7 @@ async function sendQueue(getSock, queue, delayMs, onProgress, control, startInde
       // Checar se atingiu o limite do lote e se não excedeu o limite máximo de pausas
       if (batchSize > 0 && sentInBatch >= batchSize && (maxPauses === 0 || pausesTaken < maxPauses)) {
         pausesTaken++;
-        console.log(`[Bot] Lote de ${batchSize} atingido (Pausa ${pausesTaken}/${maxPauses === 0 ? 'Infinito' : maxPauses}). Pausando por ${batchPauseMs / 1000}s`);
+        console.log(`[Bot] Lote de ${batchSize} atingido (Pausa ${pausesTaken}/${maxPauses}). Pausando por ${batchPauseMs / 1000}s`);
         onProgress({
           sent: i + 1,
           total,
@@ -178,10 +199,40 @@ async function sendQueue(getSock, queue, delayMs, onProgress, control, startInde
     }
   }
 
-  // Disparo finalizado
+  // Disparo finalizado — deletar todos os arquivos enviados com sucesso em lote
   if (!control.stop) {
+    deletarArquivosEmLote(arquivosParaDeletar);
     onProgress({ sent: total, total, current: null, status: 'DONE', currentIndex: total });
   }
+}
+
+/**
+ * Deletar arquivos enviados com sucesso em lote (evita race condition com o Watcher)
+ * Adiciona um delay entre cada deleção para dar tempo ao Watcher de processar
+ */
+function deletarArquivosEmLote(listaArquivos) {
+  if (listaArquivos.length === 0) return;
+  
+  console.log(`[DELETE] Iniciando deleção em lote de ${listaArquivos.length} arquivos enviados com sucesso...`);
+  
+  let deletados = 0;
+  let erros = 0;
+
+  // Deletar com intervalo de 3 segundos entre cada um para dar tempo ao Watcher regenerar sequencialmente
+  listaArquivos.forEach((filePath, index) => {
+    setTimeout(() => {
+      try {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          deletados++;
+          console.log(`[DELETE] ${path.basename(filePath)} removido (${deletados}/${listaArquivos.length})`);
+        }
+      } catch (err) {
+        erros++;
+        console.error(`[DELETE_ERROR] Falha ao deletar ${filePath}:`, err.message);
+      }
+    }, index * 3000); // 3 segundos entre cada deleção
+  });
 }
 
 /**

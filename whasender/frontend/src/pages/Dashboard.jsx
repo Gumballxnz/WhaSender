@@ -3,7 +3,7 @@
  * Exibe status do bot, progresso e estatísticas em tempo real
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Wifi, WifiOff, Activity, Users, Clock, AlertTriangle,
@@ -11,7 +11,7 @@ import {
   Pause, Square, Play, Timer
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useSocket } from '../services/useSocket';
+import useSocketStore from '../store/socketStore';
 import api from '../services/api';
 
 /**
@@ -27,12 +27,17 @@ function formatTime(totalSeconds) {
 }
 
 function Dashboard() {
-  const [botStatus, setBotStatus] = useState('disconnected');
-  const [qrCode, setQrCode] = useState(null);
-  const [progress, setProgress] = useState(null);
+  const botStatus = useSocketStore((s) => s.botStatus);
+  const setBotStatus = useSocketStore((s) => s.setBotStatus);
+  const qrCode = useSocketStore((s) => s.qrCode);
+  const setQrCode = useSocketStore((s) => s.setQrCode);
+  const progress = useSocketStore((s) => s.progress);
+  const setProgress = useSocketStore((s) => s.setProgress);
+  const pairingCode = useSocketStore((s) => s.pairingCode);
+  const setPairingCode = useSocketStore((s) => s.setPairingCode);
+
   const [stats, setStats] = useState({ totalContacts: 0, lastSession: null });
   const [settings, setSettings] = useState({});
-  const [pairingCode, setPairingCode] = useState(null);
   const [phoneInput, setPhoneInput] = useState('');
   const [authMode, setAuthMode] = useState('phone');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -42,13 +47,14 @@ function Dashboard() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const timerRef = useRef(null);
   const startTimeRef = useRef(null);
+  const prevStatusRef = useRef(progress?.status);
 
   // Carregar dados iniciais
   useEffect(() => {
     loadData();
   }, []);
 
-  // Timer: contar tempo decorrido durante disparo
+  // Timer e gerenciamento de estado de progresso
   useEffect(() => {
     const isActive = progress && ['SENDING'].includes(progress.status);
     
@@ -64,10 +70,21 @@ function Dashboard() {
       timerRef.current = null;
     }
 
+    // Se o disparo parou ou foi cancelado, limpar timer e recarregar dados
+    if (progress && ['STOPPED', 'CANCELLED', 'DONE'].includes(progress.status) && !progress.current) {
+      if (prevStatusRef.current !== progress.status) {
+        startTimeRef.current = null;
+        setElapsedSeconds(0);
+        setTimeout(() => loadData(), 500);
+      }
+    }
+
+    prevStatusRef.current = progress?.status;
+
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [progress?.status]);
+  }, [progress?.status, progress?.current]);
 
   async function loadData() {
     try {
@@ -94,59 +111,6 @@ function Dashboard() {
       }
     } catch {}
   }
-
-  // WebSocket para atualizações em tempo real
-  const handleWsMessage = useCallback((msg) => {
-    switch (msg.type) {
-      case 'BOT_STATUS':
-        setBotStatus(msg.status);
-        if (msg.status === 'connected') {
-          setQrCode(null);
-          setPairingCode(null);
-        }
-        break;
-      case 'QR':
-        setQrCode(msg.payload);
-        if (botStatus !== 'pairing') setBotStatus('qr');
-        break;
-      case 'PAIRING_CODE':
-        setPairingCode(msg.payload);
-        setBotStatus('pairing');
-        break;
-      case 'PAIRING_CODE_ERROR':
-        toast.error(`Erro ao parear: ${msg.message}`);
-        setPairingCode(null);
-        break;
-      case 'PROGRESS':
-        setProgress(msg.data);
-        // Se o disparo parou ou foi cancelado, limpar timer e recarregar dados
-        if (['STOPPED', 'CANCELLED', 'DONE'].includes(msg.data?.status) && !msg.data?.current) {
-          startTimeRef.current = null;
-          setElapsedSeconds(0);
-          // Recarregar para atualizar stoppedSession e lastSession
-          setTimeout(() => loadData(), 500);
-        }
-        break;
-      case 'DISPATCH_STARTED':
-        startTimeRef.current = Date.now();
-        setElapsedSeconds(0);
-        setStoppedSession(null);
-        setProgress({ sent: 0, total: msg.data.total, status: 'SENDING', delayMs: msg.data.delayMs });
-        break;
-      case 'DISPATCH_RESUMED':
-        startTimeRef.current = Date.now();
-        setElapsedSeconds(0);
-        setStoppedSession(null);
-        setProgress({ sent: msg.data.sentCount, total: msg.data.total, status: 'SENDING', delayMs: msg.data.delayMs });
-        break;
-      case 'DISPATCH_AUTO_STOPPED':
-        toast.error('⚠️ Bot desconectou — disparo pausado automaticamente');
-        loadData();
-        break;
-    }
-  }, []);
-
-  useSocket(handleWsMessage);
 
   const statusConfig = {
     connected: { color: 'connected', icon: Wifi, label: 'Conectado', badge: 'badge-success' },
@@ -204,15 +168,34 @@ function Dashboard() {
     }
   };
 
-  const switchToQR = async () => {
+  const switchToQR = () => {
+    setAuthMode('qr');
+  };
+
+  const generateQR = async () => {
     try {
-      setAuthMode('qr');
+      setQrCode(null);
+      setBotStatus('connecting');
       await api.post('/bot/qr');
-    } catch {}
+      toast.success('Gerando QR Code...');
+    } catch (err) {
+      toast.error('Erro ao gerar QR Code');
+    }
   };
 
   const switchToPhone = () => {
     setAuthMode('phone');
+  };
+
+  const stopConnection = async () => {
+    try {
+      await api.post('/bot/stop');
+      setPairingCode(null);
+      setQrCode(null);
+      toast.success('Tentativa de conexão interrompida.');
+    } catch (err) {
+      toast.error('Erro ao parar tentativa de conexão');
+    }
   };
 
   // Ações de disparo
@@ -308,41 +291,68 @@ function Dashboard() {
                       </label>
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <input
-                          type="text"
-                          className="input input-mono"
-                          value={phoneInput}
-                          onChange={(e) => setPhoneInput(e.target.value.replace(/\D/g, ''))}
-                          placeholder="25884..."
-                          style={{ flex: 1 }}
+                           type="text"
+                           className="input input-mono"
+                           value={phoneInput}
+                           onChange={(e) => setPhoneInput(e.target.value.replace(/\D/g, ''))}
+                           placeholder="25884..."
+                           style={{ flex: 1 }}
                         />
-                        <button type="submit" className="btn btn-primary btn-sm">
+                        <button type="submit" className="btn btn-primary btn-sm" disabled={botStatus === 'connecting'}>
                           Gerar
                         </button>
                       </div>
+                      {botStatus === 'connecting' && (
+                        <button type="button" className="btn btn-sm btn-secondary" onClick={stopConnection} style={{ marginTop: '12px', width: '100%', justifyContent: 'center' }}>
+                          Cancelar
+                        </button>
+                      )}
                     </form>
                   ) : (
                     <div style={{ textAlign: 'center', padding: '16px', background: 'var(--bg-input)', borderRadius: 'var(--radius-md)' }}>
                       <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
                         Abra o WhatsApp &gt; Aparelhos Conectados &gt; Conectar &gt; Ligar com número de telefone
                       </p>
-                      <div className="mono" style={{ fontSize: '32px', fontWeight: 700, letterSpacing: '4px', color: 'var(--accent)' }}>
-                        {pairingCode}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
+                        <div className="mono" style={{ fontSize: '32px', fontWeight: 700, letterSpacing: '4px', color: 'var(--accent)' }}>
+                          {pairingCode}
+                        </div>
+                        <button className="btn btn-sm" style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', border: '1px solid rgba(239, 68, 68, 0.2)' }} onClick={stopConnection}>
+                          Cancelar
+                        </button>
                       </div>
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="qr-container" style={{ margin: 0, padding: '16px' }}>
-                  {qrCode ? (
+                <div className="qr-container" style={{ margin: 0, padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '210px' }}>
+                  {botStatus === 'qr' && qrCode ? (
                     <>
                       <QRCodeSVG value={qrCode} size={180} level="M" />
-                      <p style={{ marginTop: '12px', color: '#333', fontSize: '13px', fontWeight: 500 }}>
+                      <p style={{ marginTop: '12px', color: 'var(--text-primary)', fontSize: '13px', fontWeight: 500 }}>
                         Escaneie com o WhatsApp
                       </p>
+                      <button className="btn btn-sm btn-secondary" onClick={stopConnection} style={{ marginTop: '12px' }}>
+                        Parar Conexão
+                      </button>
                     </>
+                  ) : botStatus === 'connecting' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center' }}>
+                        Gerando QR Code...
+                      </div>
+                      <button className="btn btn-sm btn-secondary" onClick={stopConnection}>
+                        Cancelar
+                      </button>
+                    </div>
                   ) : (
-                    <div style={{ padding: '40px 0', color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center' }}>
-                      Gerando QR Code...
+                    <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '16px' }}>
+                        Clique no botão abaixo para gerar um novo QR Code.
+                      </p>
+                      <button className="btn btn-primary" onClick={generateQR}>
+                        <QrCode size={16} /> Gerar QR Code
+                      </button>
                     </div>
                   )}
                 </div>

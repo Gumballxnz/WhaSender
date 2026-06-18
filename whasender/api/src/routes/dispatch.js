@@ -41,8 +41,8 @@ function updateBotStatus(status) {
   const previousStatus = botStatus;
   botStatus = status;
 
-  // Auto-stop: se o bot desconectou e havia disparo em andamento
-  if (previousStatus === 'connected' && status !== 'connected' && currentSession) {
+  // Auto-stop: se o bot desconectou permanentemente e havia disparo em andamento
+  if (previousStatus === 'connected' && status === 'disconnected' && currentSession) {
     console.log('[Dispatch] ⚠️ Bot desconectou durante disparo — auto-stop ativado');
     
     // Enviar comando de parada ao bot (se ainda estiver acessível)
@@ -87,18 +87,27 @@ function toJid(phone) {
 /**
  * Montar a fila de envio (reutilizada por start e resume)
  */
-function buildQueue(maxCount) {
+function buildQueue(maxCount, excludeSessionId = null) {
   const fileNamesFromDisk = fs.readdirSync(FILES_PATH).filter(f => f.toLowerCase().endsWith('.xlsx'));
   
   // Mapa: chave (minúscula) -> valor (nome real no disco)
   const realFileNamesMap = new Map();
   fileNamesFromDisk.forEach(f => realFileNamesMap.set(f.toLowerCase(), f));
 
+  // Obter IDs de contatos já enviados com sucesso nesta sessão para excluir
+  const excludedContactIds = new Set();
+  if (excludeSessionId) {
+    const sent = db.prepare("SELECT contact_id FROM dispatch_logs WHERE session_id = ? AND status IN ('SENT', 'RESENT')").all(excludeSessionId);
+    sent.forEach(row => {
+      if (row.contact_id) excludedContactIds.add(row.contact_id);
+    });
+  }
+
   const allActiveContacts = db.prepare('SELECT * FROM contacts WHERE active = 1 ORDER BY id ASC').all();
 
-  return allActiveContacts
+  const queue = allActiveContacts
+    .filter(c => !excludedContactIds.has(c.id))
     .filter(c => realFileNamesMap.has((c.file_name || '').toLowerCase()))
-    .slice(0, maxCount)
     .map(c => {
       const realDiskFileName = realFileNamesMap.get((c.file_name || '').toLowerCase());
       return {
@@ -109,6 +118,15 @@ function buildQueue(maxCount) {
         contactId: c.id,
       };
     });
+
+  // Ordenar numericamente pelo nome do arquivo (ex: parte_1.xlsx, parte_2.xlsx...)
+  queue.sort((a, b) => {
+    const numA = parseInt(a.fileName.match(/\d+/)?.[0] || 0);
+    const numB = parseInt(b.fileName.match(/\d+/)?.[0] || 0);
+    return numA - numB;
+  });
+
+  return queue.slice(0, maxCount);
 }
 
 /**
@@ -279,19 +297,19 @@ router.post('/resume', (req, res) => {
   const batchPauseMs = (parseInt(settings.batch_pause_minutes) || 10) * 60 * 1000;
   const maxPauses = parseInt(settings.max_pauses) || 0;
 
-  const queue = buildQueue(maxCount);
+  const queue = buildQueue(maxCount, sessionId);
 
   if (queue.length === 0) {
     return res.status(400).json({ error: 'Nenhum arquivo encontrado na VPS' });
   }
 
-  // O startIndex é quantos já foram enviados com sucesso
-  const startIndex = Math.min(sentCount, queue.length - 1);
+  // Como filtramos os já enviados, começamos do índice 0 da nova fila reduzida
+  const startIndex = 0;
 
   // Reativar a sessão existente
   db.prepare("UPDATE dispatch_sessions SET status = 'RUNNING', finished_at = NULL WHERE id = ?").run(sessionId);
   currentSession = sessionId;
-  lastSentIndex = startIndex;
+  lastSentIndex = sentCount;
 
   // Enviar comando ao bot
   botProcess.send({ type: 'START_DISPATCH', payload: { queue, delayMs, startIndex, batchSize, batchPauseMs, maxPauses } });
@@ -422,6 +440,9 @@ function handleProgress(data) {
   }
 
   try {
+    const sessionVal = db.prepare('SELECT total FROM dispatch_sessions WHERE id = ?').get(sessionId);
+    const total = sessionVal ? sessionVal.total : data.total;
+
     // Registrar log individual
     if (data.current) {
       if (data.status === 'RESENT' && data.logId) {
@@ -445,6 +466,13 @@ function handleProgress(data) {
         );
       }
     }
+
+    // Calcular progresso cumulativo a partir do banco de dados (única fonte da verdade)
+    const sentCount = db.prepare("SELECT COUNT(*) as count FROM dispatch_logs WHERE session_id = ? AND status IN ('SENT', 'RESENT')")
+      .get(sessionId)?.count || 0;
+
+    data.sent = sentCount;
+    data.total = total;
 
     // Atualizar contadores da sessão
     const sent = data.status === 'SENDING' || data.status === 'DONE' ? data.sent : undefined;

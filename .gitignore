@@ -4,6 +4,7 @@ node_modules/
 *.key
 *.pem
 MEMORIA_DO_PROJETO.md
+vps_oracle.key
 
 # Ignorar dados sensíveis do Whasender
 whasender/data/

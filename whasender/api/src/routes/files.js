@@ -1,48 +1,35 @@
+/**
+ * WhaSender — Rotas de Ficheiros
+ * Upload, listagem, download e deleção de planilhas
+ * NOTA: Lógica de regeneração automática (Watcher) REMOVIDA por causar bugs de race condition
+ */
+
 const express = require('express');
-const router = express.Router();
 const multer = require('multer');
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
+const router = express.Router();
 
 const FILES_PATH = process.env.FILES_PATH || '/opt/whasender/data/arquivos';
 
-const ignoreNextWatchEvent = new Set();
-let ignoreAllWatchEvents = false;
+// Criar pasta se não existir
+if (!fs.existsSync(FILES_PATH)) {
+  fs.mkdirSync(FILES_PATH, { recursive: true });
+}
 
-// Obter limite de upload da VPS
-router.get('/limit', (req, res) => {
-  res.json({ 
-    maxSize: '100MB',
-    maxFiles: 104,
-    description: 'Limite configurado no Nginx e API'
-  });
-});
-
+// Configurar multer para upload
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, FILES_PATH);
-  },
-  filename: (req, file, cb) => {
-    // Segurança máxima: path.basename remove qualquer tentativa de Path Traversal (ex: ../../../etc/passwd.xlsx)
-    const safeName = path.basename(file.originalname);
-    cb(null, safeName);
-  }
+  destination: (req, file, cb) => cb(null, FILES_PATH),
+  filename: (req, file, cb) => cb(null, file.originalname),
 });
 
-const upload = multer({
+const upload = multer({ 
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB per file
-  fileFilter: (req, file, cb) => {
-    if (path.extname(file.originalname).toLowerCase() === '.xlsx') {
-      cb(null, true);
-    } else {
-      cb(new Error('Apenas ficheiros .xlsx são permitidos'));
-    }
-  }
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB por ficheiro
 });
 
-// Upload múltiplo
-router.post('/upload', upload.array('files', 150), (req, res) => {
+// Upload de ficheiros
+router.post('/upload', upload.array('files', 200), (req, res) => {
   if (!req.files || req.files.length === 0) {
     return res.status(400).json({ error: 'Nenhum ficheiro recebido' });
   }
@@ -83,16 +70,10 @@ router.get('/', (req, res) => {
 // Limpar todos os ficheiros
 router.delete('/all', (req, res) => {
   try {
-    ignoreAllWatchEvents = true;
     const files = fs.readdirSync(FILES_PATH).filter(f => f.endsWith('.xlsx'));
     files.forEach(f => fs.unlinkSync(path.join(FILES_PATH, f)));
-    
-    // Desativar a flag após um pequeno delay para dar tempo ao watcher de processar os eventos de exclusão em massa
-    setTimeout(() => { ignoreAllWatchEvents = false; }, 2000);
-    
     res.json({ success: true, deleted: files.length });
   } catch (err) {
-    ignoreAllWatchEvents = false;
     res.status(500).json({ error: err.message });
   }
 });
@@ -110,9 +91,8 @@ router.delete('/:filename', (req, res) => {
 
   try {
     if (fs.existsSync(filePath)) {
-      // Deletamos o arquivo físico. O watcher automático cuidará da auto-regeneração circular instantânea!
       fs.unlinkSync(filePath);
-      res.json({ success: true, message: `Ficheiro ${filename} removido e colocado na fila de regeneração circular` });
+      res.json({ success: true, message: `Ficheiro ${filename} removido com sucesso` });
     } else {
       res.status(404).json({ error: 'Ficheiro não encontrado' });
     }
@@ -233,55 +213,5 @@ router.post('/generate', (req, res) => {
     generationStatus.message = `Falha na geração: ${err.message}`;
   });
 });
-
-// Watcher automático de arquivos para loop de leads Movitel infinitos em tempo real
-if (fs.existsSync(FILES_PATH)) {
-  console.log(`[Files API Watcher] 👁️ Monitor de leads ativos inicializado em: ${FILES_PATH}`);
-  
-  fs.watch(FILES_PATH, (eventType, filename) => {
-    if (!filename || !filename.endsWith('.xlsx')) return;
-    
-    // Capturar exclusão de arquivos com o padrão 'parte_X.xlsx'
-    const match = filename.match(/^parte_(\d+)\.xlsx$/);
-    if (!match) return;
-    
-    // Aguardar leve delay para dar tempo do sistema operacional concluir a deleção e liberar o lock
-    setTimeout(() => {
-      const filePath = path.join(FILES_PATH, filename);
-      const existe = fs.existsSync(filePath);
-      
-      if (!existe) {
-        // Ignorar se a exclusão foi em massa (all)
-        if (ignoreAllWatchEvents) return;
-        
-        console.log(`[Files API Watcher] ⚠️ Planilha ${filename} foi enviada ou deletada da pasta de leads!`);
-        console.log(`[Files API Watcher] 🚀 Iniciando regeneração assíncrona infinita de ${filename} com leads Movitel únicos...`);
-        
-        // Disparar o script gerador assíncrono para recriar apenas este arquivo com o mesmo nome e novos contatos únicos
-        const { fork } = require('child_process');
-        const scriptPath = path.join(__dirname, '../../../generate_leads.js');
-        
-        const child = fork(scriptPath, [], {
-          env: {
-            ...process.env,
-            TOTAL_PARTES: '1',
-            LEADS_POR_PARTE: '25000',
-            PREFIXO_GERACAO: '87', // Prefixo default Movitel
-            REGEN_PARTE_NAME: filename,
-            OUTPUT_DIR: FILES_PATH
-          }
-        });
-        
-        child.on('exit', (code) => {
-          if (code === 0) {
-            console.log(`[Files API Watcher] ✅ Planilha circular ${filename} regenerada com sucesso!`);
-          } else {
-            console.error(`[Files API Watcher] ❌ Erro ao regenerar planilha circular ${filename} (Código: ${code})`);
-          }
-        });
-      }
-    }, 500);
-  });
-}
 
 module.exports = router;

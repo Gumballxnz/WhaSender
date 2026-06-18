@@ -79,6 +79,13 @@ app.post('/api/bot/logout', (req, res) => {
   res.json({ message: 'Desconectando sessão...' });
 });
 
+// Rota para cancelar conexão do bot
+app.post('/api/bot/stop', (req, res) => {
+  botProcess?.send({ type: 'STOP_CONNECTION' });
+  lastPairingCode = null;
+  res.json({ message: 'Conexão interrompida.' });
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', uptime: process.uptime(), botStatus });
@@ -155,6 +162,13 @@ function startBotProcess() {
       case 'PAIRING_CODE_ERROR':
         console.error('[API] Erro no código de pareamento:', msg.message);
         broadcastWS({ type: 'PAIRING_CODE_ERROR', message: msg.message });
+        break;
+
+      case 'PAIRING_CODE_EXPIRED':
+        lastPairingCode = null;
+        botStatus = 'disconnected';
+        broadcastWS({ type: 'PAIRING_CODE_EXPIRED' });
+        broadcastWS({ type: 'BOT_STATUS', status: 'disconnected' });
         break;
 
       case 'CONNECTED':
