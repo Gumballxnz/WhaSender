@@ -41,6 +41,7 @@ function Layout() {
         break;
       case 'QR':
         setQrCode(msg.payload);
+        setBotStatus('qr');
         break;
       case 'PAIRING_CODE':
         setPairingCode(msg.payload);
