@@ -15,9 +15,13 @@ const router = express.Router();
 
 const FILES_PATH = process.env.FILES_PATH || '/opt/whasender/data/arquivos';
 
-// Criar pasta se não existir
+// Criar pastas se não existirem
 if (!fs.existsSync(FILES_PATH)) {
   fs.mkdirSync(FILES_PATH, { recursive: true });
+}
+const SESSIONS_PATH = process.env.SESSIONS_PATH || path.join(__dirname, '../../../data/sessions');
+if (!fs.existsSync(SESSIONS_PATH)) {
+  fs.mkdirSync(SESSIONS_PATH, { recursive: true });
 }
 
 // Configurar multer para upload
@@ -272,6 +276,8 @@ router.post('/generate', (req, res) => {
   const { fork } = require('child_process');
   const scriptPath = path.join(__dirname, '../../generate_leads.js');
 
+  const sessionDir = path.join(SESSIONS_PATH, `session_${sessionId}`);
+
   const child = fork(scriptPath, [], {
     env: {
       ...process.env,
@@ -279,6 +285,7 @@ router.post('/generate', (req, res) => {
       TOTAL_PARTES: partes.toString(),
       LEADS_POR_PARTE: contatosPorParte.toString(),
       PREFIXO_GERACAO: prefixo,
+      SESSION_DIR: sessionDir,
     }
   });
 
@@ -322,6 +329,82 @@ router.post('/generate', (req, res) => {
         .run(err.message, sessionId);
     } catch (e) {}
   });
+
+// ═══════════════════════════════════════════════════════
+// Download ZIP de uma sessão específica
+// ═══════════════════════════════════════════════════════
+router.get('/generate/download-zip/:sessionId', (req, res) => {
+  const { sessionId } = req.params;
+  const sessionDir = path.join(SESSIONS_PATH, `session_${sessionId}`);
+
+  try {
+    if (!fs.existsSync(sessionDir)) {
+      return res.status(404).json({ error: 'Arquivos desta geração não foram encontrados no servidor' });
+    }
+
+    const archiver = require('archiver');
+    const files = fs.readdirSync(sessionDir).filter(f => f.endsWith('.xlsx'));
+
+    if (files.length === 0) {
+      return res.status(404).json({ error: 'Nenhuma planilha encontrada para esta geração' });
+    }
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename=leads_gerados_sessao_${sessionId}.zip`);
+
+    const archive = archiver('zip', { zlib: { level: 6 } });
+    archive.on('error', (err) => {
+      console.error(`[ZIP] Erro ao criar ZIP para sessão ${sessionId}:`, err);
+      if (!res.headersSent) res.status(500).json({ error: err.message });
+    });
+
+    archive.pipe(res);
+
+    files.forEach(f => {
+      archive.file(path.join(sessionDir, f), { name: f });
+    });
+
+    archive.finalize();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════
+// Mover planilhas de uma sessão para a pasta de envios ativa (FILES_PATH)
+// ═══════════════════════════════════════════════════════
+router.post('/generate/move-to-files/:sessionId', (req, res) => {
+  const { sessionId } = req.params;
+  const sessionDir = path.join(SESSIONS_PATH, `session_${sessionId}`);
+
+  try {
+    if (!fs.existsSync(sessionDir)) {
+      return res.status(404).json({ error: 'Arquivos desta geração não foram encontrados no servidor' });
+    }
+
+    const files = fs.readdirSync(sessionDir).filter(f => f.endsWith('.xlsx'));
+    if (files.length === 0) {
+      return res.status(404).json({ error: 'Nenhuma planilha encontrada para mover nesta geração' });
+    }
+
+    // Criar pasta de destino se não existir
+    if (!fs.existsSync(FILES_PATH)) {
+      fs.mkdirSync(FILES_PATH, { recursive: true });
+    }
+
+    // Copiar os arquivos
+    files.forEach(f => {
+      fs.copyFileSync(path.join(sessionDir, f), path.join(FILES_PATH, f));
+    });
+
+    res.json({ 
+      success: true, 
+      movedCount: files.length, 
+      message: `${files.length} planilhas da sessão #${sessionId} copiadas com sucesso para a fila de disparo.` 
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

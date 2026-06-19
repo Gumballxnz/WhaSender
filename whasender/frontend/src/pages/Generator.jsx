@@ -41,6 +41,8 @@ export default function Generator() {
   // Loading
   const [loading, setLoading] = useState(true);
   const [downloadingZip, setDownloadingZip] = useState(false);
+  const [movingSessionId, setMovingSessionId] = useState(null);
+  const [downloadingSessionId, setDownloadingSessionId] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -149,6 +151,40 @@ export default function Generator() {
       toast.error('Erro ao baixar ZIP: ' + (err.response?.data?.error || err.message));
     } finally {
       setDownloadingZip(false);
+    }
+  };
+
+  // Download ZIP de uma sessão específica
+  const handleDownloadSessionZip = async (sessionId) => {
+    setDownloadingSessionId(sessionId);
+    try {
+      const response = await api.get(`/files/generate/download-zip/${sessionId}`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `leads_sessao_${sessionId}.zip`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.success(`Download da geração #${sessionId} iniciado!`);
+    } catch (err) {
+      toast.error('Erro ao baixar ZIP da geração: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setDownloadingSessionId(null);
+    }
+  };
+
+  // Mover planilhas de uma sessão para envios
+  const handleMoveToFiles = async (sessionId) => {
+    setMovingSessionId(sessionId);
+    try {
+      const { data } = await api.post(`/files/generate/move-to-files/${sessionId}`);
+      toast.success(data.message || 'Arquivos movidos com sucesso para a fila de envio!');
+    } catch (err) {
+      toast.error('Erro ao mover arquivos: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setMovingSessionId(null);
     }
   };
 
@@ -431,6 +467,49 @@ export default function Generator() {
             </div>
           )}
 
+          {/* Sucesso e Ações pós-geração */}
+          {!generating && progress.sessionId && progress.message?.includes('sucesso') && (
+            <div style={{
+              padding: '16px', borderRadius: '10px',
+              background: 'rgba(37, 211, 102, 0.08)', border: '1px solid var(--accent)',
+              marginBottom: '16px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--accent)', fontWeight: 600 }}>
+                <CheckCircle2 size={18} />
+                <span>Geração concluída com sucesso!</span>
+              </div>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px', lineHeight: 1.4 }}>
+                Os números foram salvos permanentemente no banco anti-duplicata. Escolha o que fazer com os arquivos Excel:
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <button
+                  onClick={() => handleDownloadSessionZip(progress.sessionId)}
+                  disabled={downloadingSessionId === progress.sessionId}
+                  className="btn btn-secondary"
+                  style={{ width: '100%', justifyContent: 'center', padding: '10px', fontSize: '13px' }}
+                >
+                  {downloadingSessionId === progress.sessionId ? (
+                    <><Loader2 size={15} className="spin" /> Baixando...</>
+                  ) : (
+                    <><Download size={15} /> Baixar ZIP</>
+                  )}
+                </button>
+                <button
+                  onClick={() => handleMoveToFiles(progress.sessionId)}
+                  disabled={movingSessionId === progress.sessionId}
+                  className="btn btn-primary"
+                  style={{ width: '100%', justifyContent: 'center', padding: '10px', fontSize: '13px' }}
+                >
+                  {movingSessionId === progress.sessionId ? (
+                    <><Loader2 size={15} className="spin" /> Movendo...</>
+                  ) : (
+                    <><Zap size={15} /> Mover para Envios</>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Botão Gerar */}
           <button
             onClick={handleGenerate}
@@ -512,12 +591,13 @@ export default function Generator() {
               <th>Total</th>
               <th>Partes</th>
               <th>Status</th>
+              <th>Ações</th>
             </tr>
           </thead>
           <tbody>
             {history.length === 0 ? (
               <tr>
-                <td colSpan={5} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                <td colSpan={6} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
                   Nenhuma geração registrada ainda
                 </td>
               </tr>
@@ -531,6 +611,38 @@ export default function Generator() {
                   <td className="mono">{s.total_numbers.toLocaleString('pt-BR')}</td>
                   <td className="mono">{s.total_parts}</td>
                   <td>{statusBadge(s.status)}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <button
+                        onClick={() => handleDownloadSessionZip(s.id)}
+                        disabled={s.status !== 'DONE' || downloadingSessionId === s.id}
+                        className="btn btn-secondary"
+                        style={{ padding: '6px 10px', fontSize: '12px', height: 'auto', minHeight: 'unset', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        title="Baixar ZIP desta geração"
+                      >
+                        {downloadingSessionId === s.id ? (
+                          <Loader2 size={13} className="spin" />
+                        ) : (
+                          <Download size={13} />
+                        )}
+                        <span>ZIP</span>
+                      </button>
+                      <button
+                        onClick={() => handleMoveToFiles(s.id)}
+                        disabled={s.status !== 'DONE' || movingSessionId === s.id}
+                        className="btn btn-primary"
+                        style={{ padding: '6px 10px', fontSize: '12px', height: 'auto', minHeight: 'unset', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(37, 211, 102, 0.12)', color: 'var(--accent)', border: '1px solid rgba(37, 211, 102, 0.2)' }}
+                        title="Mover planilhas para a fila de envio"
+                      >
+                        {movingSessionId === s.id ? (
+                          <Loader2 size={13} className="spin" />
+                        ) : (
+                          <Zap size={13} />
+                        )}
+                        <span>Mover</span>
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))
             )}
