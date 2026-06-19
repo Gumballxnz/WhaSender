@@ -49,6 +49,15 @@ router.post('/upload', upload.array('files', 200), (req, res) => {
   });
 });
 
+// Obter limite de upload da VPS
+router.get('/limit', (req, res) => {
+  res.json({ 
+    maxSize: '100MB',
+    maxFiles: 104,
+    description: 'Limite configurado no Nginx e API'
+  });
+});
+
 // Listar ficheiros na VPS
 router.get('/', (req, res) => {
   try {
