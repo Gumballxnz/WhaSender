@@ -24,7 +24,7 @@ const SESSION_ID = parseInt(process.env.SESSION_ID) || 0;
 const TOTAL_PARTES = parseInt(process.env.TOTAL_PARTES) || 106;
 const LEADS_POR_PARTE = parseInt(process.env.LEADS_POR_PARTE) || 25000;
 const PREFIXO = process.env.PREFIXO_GERACAO || '87';
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data/whasender.db');
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../data/whasender.db');
 const FILES_PATH = process.env.FILES_PATH || '/opt/whasender/data/arquivos';
 
 // Validação

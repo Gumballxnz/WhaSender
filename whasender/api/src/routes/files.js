@@ -261,7 +261,7 @@ router.post('/generate', (req, res) => {
 
   // Iniciar o gerador como processo filho
   const { fork } = require('child_process');
-  const scriptPath = path.join(__dirname, '../../../generate_leads.js');
+  const scriptPath = path.join(__dirname, '../../generate_leads.js');
 
   const child = fork(scriptPath, [], {
     env: {
