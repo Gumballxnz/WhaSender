@@ -329,6 +329,7 @@ router.post('/generate', (req, res) => {
         .run(err.message, sessionId);
     } catch (e) {}
   });
+});
 
 // ═══════════════════════════════════════════════════════
 // Download ZIP de uma sessão específica
