@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileText, Trash2, CheckCircle2, Loader2, Info, AlertTriangle, HardDrive, Download, Cpu } from 'lucide-react';
+import { Upload, FileText, Trash2, CheckCircle2, Loader2, Info, AlertTriangle, HardDrive, Download, Archive } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 
@@ -12,14 +12,7 @@ export default function Files() {
   const [percentage, setPercentage] = useState(0);
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState({ show: false, type: '', data: null });
-
-  // Estados para geração automática de leads Movitel
-  const [generatingLeads, setGeneratingLeads] = useState(false);
-  const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0, message: '' });
-  const [partes, setPartes] = useState(106);
-  const [contatosPorParte, setContatosPorParte] = useState(25000);
-  const [prefixo, setPrefixo] = useState('87');
-  const [generationStartTime, setGenerationStartTime] = useState(null);
+  const [downloadingZip, setDownloadingZip] = useState(false);
 
   useEffect(() => {
     loadVpsFiles();
@@ -55,7 +48,6 @@ export default function Files() {
     if (xlsx.length < accepted.length) {
       toast.error('Apenas arquivos .xlsx são aceitos');
     }
-    // Combinar novos arquivos com os já selecionados, evitando duplicados por nome
     setFiles(prev => {
       const existingNames = new Set(prev.map(f => f.name));
       const newFiles = xlsx.filter(f => !existingNames.has(f.name));
@@ -127,7 +119,6 @@ export default function Files() {
     }
   };
 
-  // Baixar planilha autenticada via Blob
   const handleDownload = async (filename) => {
     try {
       const response = await api.get(`/files/download/${filename}`, {
@@ -147,54 +138,24 @@ export default function Files() {
     }
   };
 
-  // Disparar geração de leads Movitel em segundo plano com polling
-  const handleGenerateLeads = async () => {
-    setGeneratingLeads(true);
-    setGenerationStartTime(Date.now());
-    setGenerationProgress({ current: 0, total: partes, message: 'Iniciando geração...' });
+  const handleDownloadZip = async () => {
+    setDownloadingZip(true);
     try {
-      await api.post('/files/generate', { partes, contatosPorParte, prefixo });
-      toast.success('Geração de leads iniciada na VPS!');
-
-      // Acompanhar progresso a cada 1 segundo
-      const interval = setInterval(async () => {
-        try {
-          const { data } = await api.get('/files/generate/status');
-          setGenerationProgress(data);
-          if (!data.running) {
-            clearInterval(interval);
-            setGeneratingLeads(false);
-            toast.success(data.message || 'Geração concluída!');
-            loadVpsFiles(); // Atualizar listagem na interface
-          }
-        } catch (err) {
-          clearInterval(interval);
-          setGeneratingLeads(false);
-          toast.error('Erro ao ler status da geração');
-        }
-      }, 1000);
+      const response = await api.get('/files/download-zip', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `whasender_leads_${Date.now()}.zip`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.success('Download ZIP iniciado!');
     } catch (err) {
-      setGeneratingLeads(false);
-      toast.error('Erro ao iniciar geração: ' + (err.response?.data?.error || err.message));
+      toast.error('Erro ao baixar ZIP: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setDownloadingZip(false);
     }
-  };
-
-  // Calcular tempo estimado restante (ETA)
-  const getEtaText = () => {
-    if (!generationStartTime || !generationProgress.current || !generationProgress.running) {
-      return 'Calculando tempo restante...';
-    }
-    const tempoGasto = (Date.now() - generationStartTime) / 1000; // segundos
-    const tempoMedio = tempoGasto / generationProgress.current;
-    const partesRestantes = generationProgress.total - generationProgress.current;
-    const segundosRestantes = Math.round(tempoMedio * partesRestantes);
-
-    if (segundosRestantes <= 0) return 'Concluindo...';
-    if (segundosRestantes < 60) return `Tempo restante estimado: ${segundosRestantes}s`;
-
-    const min = Math.floor(segundosRestantes / 60);
-    const seg = segundosRestantes % 60;
-    return `Tempo restante estimado: ${min}m ${seg}s`;
   };
 
   return (
@@ -304,7 +265,6 @@ export default function Files() {
                       <Loader2 size={18} className="spin" />
                       <span>Enviando... {percentage}%</span>
                     </div>
-                    {/* Barra de progresso interna do botão */}
                     <div style={{ 
                       position: 'absolute', 
                       bottom: 0, 
@@ -323,104 +283,6 @@ export default function Files() {
           )}
         </div>
 
-        {/* Gerador Automático de Leads Movitel */}
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">Gerador de Leads Movitel</span>
-            <div className="card-icon green"><Cpu size={20} className={generatingLeads ? "spin" : ""} /></div>
-          </div>
-          
-          <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-              Gere listas XLSX com contatos Movitel válidos de Moçambique, 100% livres de duplicatas e com repetição máxima de 4 dígitos iguais seguidos.
-            </p>
-
-            <div className="input-group" style={{ marginBottom: 0 }}>
-              <label>Prefixo Movitel</label>
-              <select
-                className="input input-mono"
-                value={prefixo}
-                onChange={(e) => setPrefixo(e.target.value)}
-                disabled={generatingLeads}
-                style={{ 
-                  cursor: 'pointer', 
-                  backgroundColor: 'var(--surface-light, #1e293b)', 
-                  border: '1px solid var(--border)', 
-                  color: 'var(--text-primary)',
-                  padding: '10px 12px',
-                  borderRadius: '8px',
-                  outline: 'none',
-                  width: '100%'
-                }}
-              >
-                <option value="87">25887 (Movitel Padrão)</option>
-                <option value="86">25886 (Movitel Secundário)</option>
-                <option value="ambos">Ambos (86 e 87 Misturados)</option>
-              </select>
-            </div>
-
-            <div className="input-group" style={{ marginBottom: 0 }}>
-              <label>Partes a Gerar (Planilhas)</label>
-              <input
-                type="number"
-                className="input input-mono"
-                value={partes}
-                onChange={(e) => setPartes(Math.max(1, parseInt(e.target.value) || 1))}
-                disabled={generatingLeads}
-                min="1"
-                max="150"
-              />
-            </div>
-
-            <div className="input-group" style={{ marginBottom: 0 }}>
-              <label>Contatos por Lote (Linhas)</label>
-              <input
-                type="number"
-                className="input input-mono"
-                value={contatosPorParte}
-                onChange={(e) => setContatosPorParte(Math.max(1, parseInt(e.target.value) || 1))}
-                disabled={generatingLeads}
-                min="1"
-                max="50000"
-              />
-            </div>
-
-            {generatingLeads && (
-              <div style={{ marginTop: '5px', padding: '12px', backgroundColor: 'rgba(37, 211, 102, 0.05)', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-                  {generationProgress.message || 'Processando...'}
-                </span>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
-                  <span>Progresso</span>
-                  <span>{generationProgress.current} / {generationProgress.total} partes</span>
-                </div>
-                <div className="progress-bar-container" style={{ margin: 0 }}>
-                  <div 
-                    className="progress-bar-fill" 
-                    style={{ width: `${(generationProgress.current / generationProgress.total) * 100}%` }}
-                  />
-                </div>
-                <span style={{ fontSize: '11px', color: 'var(--accent)', display: 'block', marginTop: '6px', fontWeight: 500 }}>
-                  ⏱️ {getEtaText()}
-                </span>
-              </div>
-            )}
-
-            <button
-              onClick={handleGenerateLeads}
-              disabled={generatingLeads}
-              className="btn btn-primary"
-              style={{ width: '100%', justifyContent: 'center', padding: '12px', marginTop: '5px' }}
-            >
-              {generatingLeads ? (
-                <><Loader2 size={18} className="spin" /> Gerando Leads...</>
-              ) : (
-                <>🚀 Gerar Leads na VPS</>
-              )}
-            </button>
-          </div>
-        </div>
-
         {/* VPS Files List */}
         <div className="card">
           <div className="card-header">
@@ -429,16 +291,23 @@ export default function Files() {
           </div>
           
           <div style={{ marginTop: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', flexWrap: 'wrap', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span className="mono" style={{ fontSize: '20px', fontWeight: 600 }}>{vpsFiles.length}</span>
                 <span className="card-label">ficheiros</span>
               </div>
-              {vpsFiles.length > 0 && (
-                <button onClick={confirmClearAll} className="btn" style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}>
-                  <Trash2 size={14} /> Limpar Pasta
-                </button>
-              )}
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {vpsFiles.length > 0 && (
+                  <>
+                    <button onClick={handleDownloadZip} disabled={downloadingZip} className="btn" style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: 'rgba(59, 130, 246, 0.1)', color: 'var(--info)' }}>
+                      {downloadingZip ? <><Loader2 size={14} className="spin" /> ZIP...</> : <><Archive size={14} /> Baixar ZIP</>}
+                    </button>
+                    <button onClick={confirmClearAll} className="btn" style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}>
+                      <Trash2 size={14} /> Limpar Pasta
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
 
             {loading ? (

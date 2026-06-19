@@ -67,6 +67,31 @@ function initializeDatabase() {
       error_message       TEXT,
       sent_at             TEXT DEFAULT (datetime('now'))
     );
+
+    -- Todos os números já gerados (unicidade global permanente)
+    CREATE TABLE IF NOT EXISTS generated_phones (
+      phone       TEXT PRIMARY KEY,
+      prefix      TEXT NOT NULL,
+      session_id  INTEGER NOT NULL,
+      created_at  TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Sessões de geração (histórico completo)
+    CREATE TABLE IF NOT EXISTS generation_sessions (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      prefix           TEXT NOT NULL,
+      total_numbers    INTEGER NOT NULL,
+      total_parts      INTEGER NOT NULL,
+      numbers_per_part INTEGER NOT NULL,
+      status           TEXT DEFAULT 'RUNNING',
+      started_at       TEXT DEFAULT (datetime('now')),
+      finished_at      TEXT,
+      error_message    TEXT
+    );
+
+    -- Índices para consultas rápidas de métricas
+    CREATE INDEX IF NOT EXISTS idx_generated_phones_prefix ON generated_phones(prefix);
+    CREATE INDEX IF NOT EXISTS idx_generated_phones_session ON generated_phones(session_id);
   `);
 
   console.log('[DB] ✅ Banco de dados inicializado');

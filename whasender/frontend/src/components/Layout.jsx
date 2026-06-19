@@ -3,7 +3,7 @@
  */
 
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Send, Users, Settings, LogOut, Zap, Folder } from 'lucide-react';
+import { LayoutDashboard, Send, Users, Settings, LogOut, Zap, Folder, Cpu } from 'lucide-react';
 import { useCallback } from 'react';
 import toast from 'react-hot-toast';
 import useAuthStore from '../store/authStore';
@@ -14,6 +14,7 @@ import api from '../services/api';
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/files', icon: Folder, label: 'Arquivos' },
+  { to: '/generator', icon: Cpu, label: 'Gerador' },
   { to: '/dispatch', icon: Send, label: 'Disparo' },
   { to: '/contacts', icon: Users, label: 'Contatos' },
   { to: '/settings', icon: Settings, label: 'Configurações' },
