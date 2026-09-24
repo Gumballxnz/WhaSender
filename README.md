@@ -15,36 +15,28 @@ Plataforma open-source para automação, geração de leads e disparos em massa 
 
 ---
 
-## Formas de Uso e Execução
+## Como Executar
 
-### Opção 1: Via NPX (Sem Instalação)
+### Via NPX (Recomendado)
+
+Execute diretamente sem precisar clonar ou instalar:
 
 ```bash
 npx @gumballwotersan/whasender
 ```
 
-### Opção 2: Via Docker Compose
-
-```bash
-# Iniciar em segundo plano
-docker compose up -d
-
-# Parar serviços
-docker compose down
-```
-
-### Opção 3: Instalação Global via NPM
+### Instalação Global
 
 ```bash
 npm install -g @gumballwotersan/whasender
 whasender
 ```
 
-### Opção 4: Desenvolvimento e Instalação Local
+### Instalação Local
 
 1. **Clonar o Repositório**:
    ```bash
-   git clone https://github.com/Gumballwotersan/WhaSender.git
+   git clone https://github.com/Gumballxnz/WhaSender.git
    cd WhaSender
    ```
 
@@ -53,44 +45,16 @@ whasender
    npm install
    ```
 
-3. **Configurar Variáveis de Ambiente**:
+3. **Configurar Ambiente**:
    ```bash
    cp .env.example .env
    ```
-   *Edite o arquivo `.env` gerado e defina suas credenciais e chaves JWT.*
 
-4. **Compilar o Frontend**:
+4. **Compilar Frontend e Iniciar**:
    ```bash
    npm run build
-   ```
-
-5. **Iniciar a Aplicação**:
-   ```bash
    npm start
    ```
-
----
-
-## Publicação no NPM
-
-### Manualmente via Terminal
-
-```bash
-# 1. Login no NPM
-npm login
-
-# 2. Build dos assets
-npm run build
-
-# 3. Publicar com escopo público
-npm publish --access public
-```
-
-### Automaticamente via GitHub Actions
-
-O repositório inclui um workflow em `.github/workflows/publish.yml`:
-1. Adicione o segredo `NPM_TOKEN` nas configurações do repositório no GitHub (`Settings > Secrets and variables > Actions`).
-2. Publique uma nova Release no GitHub ou execute o workflow manualmente na aba **Actions**.
 
 ---
 
@@ -103,8 +67,6 @@ O repositório inclui um workflow em `.github/workflows/publish.yml`:
 ├── bin/             # Ponto de entrada CLI (NPX)
 ├── data/            # Armazenamento local (ignorado pelo git)
 ├── .env.example     # Modelo de configuração de ambiente
-├── Dockerfile       # Imagem Docker multi-stage
-├── docker-compose.yml # Orquestração de container
 └── ecosystem.config.js # Configuração PM2 para servidores de produção
 ```
 
