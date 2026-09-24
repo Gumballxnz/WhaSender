@@ -1,4 +1,5 @@
 FROM node:20-alpine AS builder
+RUN apk add --no-cache python3 make g++
 WORKDIR /app
 COPY package*.json ./
 COPY api/package*.json ./api/
@@ -9,6 +10,7 @@ COPY . .
 RUN npm run build
 
 FROM node:20-alpine
+RUN apk add --no-cache python3 make g++
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package*.json ./
