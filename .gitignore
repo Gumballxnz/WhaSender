@@ -3,13 +3,31 @@ node_modules/
 .DS_Store
 *.key
 *.pem
-MEMORIA_DO_PROJETO.md
-vps_oracle.key
 
-# Ignorar dados sensíveis do Whasender
-whasender/data/
-whasender/bot/src/session/
-whasender/frontend/node_modules/
-whasender/api/node_modules/
-whasender/bot/node_modules/
-whasender/frontend/dist/
+data/
+bot/src/session/
+bot/auth_info_baileys/
+frontend/dist/
+logs/
+*.db
+*.sqlite
+*.sqlite3
+*.xlsx
+
+# Blindagem de Segredos e Chaves SSH (Clean Code)
+.env.local
+.env.*.local
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+*.pfx
+*.p12
+*serviceAccount*.json
+*credentials*.json
+temp_*
+tmp_*
+*scratch*
+test_temp*
+teste_temp*
+*.dump.sql

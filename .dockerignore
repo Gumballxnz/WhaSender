@@ -1,0 +1,12 @@
+node_modules
+.git
+.agents
+.env
+.env.*
+data
+logs
+*.db
+*.sqlite
+*.sqlite3
+*.xlsx
+frontend/dist

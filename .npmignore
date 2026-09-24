@@ -1,0 +1,14 @@
+.git
+.github
+.agents
+.env
+.env.*
+data/
+logs/
+*.db
+*.sqlite
+*.sqlite3
+*.xlsx
+frontend/node_modules/
+bot/src/session/
+bot/auth_info_baileys/

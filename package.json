@@ -1,5 +1,31 @@
 {
-  "dependencies": {
-    "xlsx": "^0.18.5"
-  }
+  "name": "@gumballwotersan/whasender",
+  "version": "1.0.0",
+  "description": "Plataforma open-source de automação, geração de leads e disparos para WhatsApp",
+  "main": "api/src/index.js",
+  "bin": {
+    "whasender": "./bin/whasender.js"
+  },
+  "workspaces": [
+    "api",
+    "bot",
+    "frontend"
+  ],
+  "scripts": {
+    "start": "node bin/whasender.js",
+    "api": "node api/src/index.js",
+    "bot": "node bot/src/index.js",
+    "build": "npm run build --workspace=frontend",
+    "dev:frontend": "npm run dev --workspace=frontend"
+  },
+  "keywords": [
+    "whatsapp",
+    "baileys",
+    "lead-generation",
+    "bulk-sender",
+    "automation",
+    "whasender"
+  ],
+  "author": "Gumballwotersan",
+  "license": "MIT"
 }
