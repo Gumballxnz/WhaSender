@@ -243,13 +243,8 @@ function Dashboard() {
         </p>
       </div>
 
-      {/* Grid de 4 Cards de Métricas (Uniforme) */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
-        gap: '16px',
-        marginBottom: '24px'
-      }}>
+      {/* Grid de 4 Cards de Métricas (Uniforme 4x1 ou 2x2) */}
+      <div className="dashboard-kpi-grid">
         {/* KPI 1: Status do Motor */}
         <div className="card" style={{ padding: '20px' }}>
           <div className="card-header" style={{ marginBottom: '12px' }}>
@@ -332,12 +327,7 @@ function Dashboard() {
       </div>
 
       {/* Grid Principal em 2 Colunas Balanceadas */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))',
-        gap: '20px',
-        alignItems: 'start'
-      }}>
+      <div className="dashboard-main-grid">
         {/* Coluna 1: Painel de Conexão WhatsApp */}
         <div className="card" style={{ padding: '24px' }}>
           <div className="card-header" style={{ marginBottom: '16px' }}>

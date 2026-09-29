@@ -272,6 +272,15 @@ router.post('/resume', (req, res) => {
   });
 });
 
+router.get('/last-session', (req, res) => {
+  try {
+    const session = db.prepare('SELECT * FROM dispatch_sessions ORDER BY id DESC LIMIT 1').get();
+    res.json({ session: session || null });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao buscar última sessão', details: err.message });
+  }
+});
+
 router.get('/status', (req, res) => {
   if (!currentSession) {
 
