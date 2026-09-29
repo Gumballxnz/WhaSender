@@ -290,7 +290,7 @@ if (fs.existsSync(distPath)) {
   });
 }
 
-const PORT = process.env.PORT_API || 3002;
+const PORT = process.env.PORT || process.env.PORT_API || 3002;
 const HOST = process.env.HOST || '0.0.0.0';
 
 server.listen(PORT, HOST, () => {
