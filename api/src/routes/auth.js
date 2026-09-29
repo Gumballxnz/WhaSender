@@ -2,14 +2,104 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
+const db = require('../db');
 const router = express.Router();
 
 const loginLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 5,
+  max: 10,
   message: { error: 'Muitas tentativas. Aguarde 1 minuto.' },
   standardHeaders: true,
   legacyHeaders: false,
+});
+
+router.get('/setup-status', (req, res) => {
+  try {
+    const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
+    res.json({ needsSetup: userCount === 0 });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao verificar status do sistema' });
+  }
+});
+
+router.post('/setup', (req, res) => {
+  const { name, username, email, password, organizationName } = req.body;
+
+  if (!name || !username || !email || !password || !organizationName) {
+    return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'A senha deve ter no mínimo 6 caracteres' });
+  }
+
+  const cleanUsername = username.toLowerCase().trim();
+  const cleanEmail = email.toLowerCase().trim();
+  const cleanOrgName = organizationName.trim();
+  const slug = cleanOrgName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'org';
+
+  try {
+    const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
+    if (userCount > 0) {
+      return res.status(403).json({ error: 'O sistema já foi configurado anteriormente' });
+    }
+
+    const passwordHash = bcrypt.hashSync(password, 10);
+
+    const setupTransaction = db.transaction(() => {
+      const userRes = db.prepare(`
+        INSERT INTO users (username, email, password_hash, name)
+        VALUES (?, ?, ?, ?)
+      `).run(cleanUsername, cleanEmail, passwordHash, name.trim());
+
+      const userId = userRes.lastInsertRowid;
+
+      const orgRes = db.prepare(`
+        INSERT INTO organizations (name, slug, owner_id)
+        VALUES (?, ?, ?)
+      `).run(cleanOrgName, slug, userId);
+
+      const orgId = orgRes.lastInsertRowid;
+
+      db.prepare(`
+        INSERT INTO organization_members (organization_id, user_id, role)
+        VALUES (?, ?, 'owner')
+      `).run(orgId, userId);
+
+      return { userId, orgId };
+    });
+
+    const { userId, orgId } = setupTransaction();
+
+    const tokenPayload = {
+      id: userId,
+      username: cleanUsername,
+      email: cleanEmail,
+      name: name.trim(),
+      organizationId: orgId,
+      role: 'owner',
+    };
+
+    const accessToken = jwt.sign(tokenPayload, db.getJwtSecret(), { expiresIn: '15m' });
+    const refreshToken = jwt.sign({ ...tokenPayload, type: 'refresh' }, db.getJwtRefreshSecret(), { expiresIn: '7d' });
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/auth',
+    });
+
+    res.json({
+      accessToken,
+      expiresIn: 900,
+      user: { id: userId, username: cleanUsername, email: cleanEmail, name: name.trim() },
+      organization: { id: orgId, name: cleanOrgName, slug, role: 'owner' },
+    });
+  } catch (err) {
+    res.status(500).json({ error: `Erro no setup: ${err.message}` });
+  }
 });
 
 router.post('/login', loginLimiter, (req, res) => {
@@ -19,39 +109,149 @@ router.post('/login', loginLimiter, (req, res) => {
     return res.status(400).json({ error: 'Usuário e senha são obrigatórios' });
   }
 
-  if (username !== process.env.ADMIN_USERNAME) {
-    return res.status(401).json({ error: 'Credenciais inválidas' });
+  const cleanLogin = username.toLowerCase().trim();
+
+  try {
+    const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
+    if (userCount === 0) {
+      return res.status(400).json({ error: 'Sistema não configurado. Complete o setup inicial.', needsSetup: true });
+    }
+
+    const user = db.prepare('SELECT * FROM users WHERE username = ? OR email = ?').get(cleanLogin, cleanLogin);
+    if (!user) {
+      return res.status(401).json({ error: 'Credenciais inválidas' });
+    }
+
+    const passwordValid = bcrypt.compareSync(password, user.password_hash);
+    if (!passwordValid) {
+      return res.status(401).json({ error: 'Credenciais inválidas' });
+    }
+
+    const organizations = db.prepare(`
+      SELECT o.id, o.name, o.slug, om.role
+      FROM organizations o
+      JOIN organization_members om ON o.id = om.organization_id
+      WHERE om.user_id = ?
+      ORDER BY om.id ASC
+    `).all(user.id);
+
+    const activeOrg = organizations[0] || { id: null, name: 'Padrão', slug: 'padrao', role: 'member' };
+
+    const tokenPayload = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      name: user.name,
+      organizationId: activeOrg.id,
+      role: activeOrg.role,
+    };
+
+    const accessToken = jwt.sign(tokenPayload, db.getJwtSecret(), { expiresIn: '15m' });
+    const refreshToken = jwt.sign({ ...tokenPayload, type: 'refresh' }, db.getJwtRefreshSecret(), { expiresIn: '7d' });
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/auth',
+    });
+
+    res.json({
+      accessToken,
+      expiresIn: 900,
+      user: { id: user.id, username: user.username, email: user.email, name: user.name },
+      organization: activeOrg,
+      organizations,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao autenticar usuário' });
+  }
+});
+
+router.get('/me', (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ error: 'Não autenticado' });
   }
 
-  const passwordValid = bcrypt.compareSync(password, process.env.ADMIN_PASSWORD_HASH);
-  if (!passwordValid) {
-    return res.status(401).json({ error: 'Credenciais inválidas' });
+  try {
+    const user = db.prepare('SELECT id, username, email, name, created_at FROM users WHERE id = ?').get(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    const organizations = db.prepare(`
+      SELECT o.id, o.name, o.slug, om.role
+      FROM organizations o
+      JOIN organization_members om ON o.id = om.organization_id
+      WHERE om.user_id = ?
+      ORDER BY om.id ASC
+    `).all(user.id);
+
+    const currentOrg = organizations.find((o) => o.id === req.user.organizationId) || organizations[0] || null;
+
+    res.json({
+      user,
+      organization: currentOrg,
+      organizations,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao carregar perfil do usuário' });
+  }
+});
+
+router.post('/switch-org', (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ error: 'Não autenticado' });
   }
 
-  const accessToken = jwt.sign(
-    { username, role: 'admin' },
-    process.env.JWT_SECRET,
-    { expiresIn: '15m' }
-  );
+  const { organizationId } = req.body;
+  if (!organizationId) {
+    return res.status(400).json({ error: 'ID da organização é obrigatório' });
+  }
 
-  const refreshToken = jwt.sign(
-    { username, role: 'admin', type: 'refresh' },
-    process.env.JWT_REFRESH_SECRET,
-    { expiresIn: '7d' }
-  );
+  try {
+    const membership = db.prepare(`
+      SELECT o.id, o.name, o.slug, om.role
+      FROM organizations o
+      JOIN organization_members om ON o.id = om.organization_id
+      WHERE om.user_id = ? AND o.id = ?
+    `).get(req.user.id, organizationId);
 
-  res.cookie('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    path: '/api/auth',
-  });
+    if (!membership) {
+      return res.status(403).json({ error: 'Você não faz parte desta organização' });
+    }
 
-  res.json({
-    accessToken,
-    expiresIn: 900,
-  });
+    const user = db.prepare('SELECT id, username, email, name FROM users WHERE id = ?').get(req.user.id);
+
+    const tokenPayload = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      name: user.name,
+      organizationId: membership.id,
+      role: membership.role,
+    };
+
+    const accessToken = jwt.sign(tokenPayload, db.getJwtSecret(), { expiresIn: '15m' });
+    const refreshToken = jwt.sign({ ...tokenPayload, type: 'refresh' }, db.getJwtRefreshSecret(), { expiresIn: '7d' });
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/auth',
+    });
+
+    res.json({
+      accessToken,
+      expiresIn: 900,
+      organization: membership,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao alternar organização' });
+  }
 });
 
 router.post('/refresh', (req, res) => {
@@ -62,15 +262,35 @@ router.post('/refresh', (req, res) => {
   }
 
   try {
-    const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    const payload = jwt.verify(refreshToken, db.getJwtRefreshSecret());
 
-    const accessToken = jwt.sign(
-      { username: payload.username, role: payload.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '15m' }
-    );
+    const user = db.prepare('SELECT id, username, email, name FROM users WHERE id = ?').get(payload.id);
+    if (!user) {
+      res.clearCookie('refreshToken', { path: '/api/auth' });
+      return res.status(401).json({ error: 'Usuário não existe mais' });
+    }
 
-    res.json({ accessToken, expiresIn: 900 });
+    const membership = db.prepare(`
+      SELECT o.id, o.name, o.slug, om.role
+      FROM organizations o
+      JOIN organization_members om ON o.id = om.organization_id
+      WHERE om.user_id = ? AND o.id = ?
+    `).get(user.id, payload.organizationId);
+
+    const activeRole = membership?.role || 'member';
+
+    const tokenPayload = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      name: user.name,
+      organizationId: payload.organizationId,
+      role: activeRole,
+    };
+
+    const accessToken = jwt.sign(tokenPayload, db.getJwtSecret(), { expiresIn: '15m' });
+
+    res.json({ accessToken, expiresIn: 900, organization: membership });
   } catch (err) {
     res.clearCookie('refreshToken', { path: '/api/auth' });
     return res.status(403).json({ error: 'Refresh token inválido ou expirado' });

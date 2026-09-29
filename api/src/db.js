@@ -97,12 +97,89 @@ function initializeDatabase() {
       ON CONFLICT(prefix) DO UPDATE SET count = count + 1;
     END;
 
-    -- Trigger de Deleção
     CREATE TRIGGER IF NOT EXISTS trg_phone_delete AFTER DELETE ON generated_phones
     BEGIN
       UPDATE phone_stats SET count = count - 1 WHERE prefix = old.prefix;
     END;
+
+    CREATE TABLE IF NOT EXISTS validation_sessions (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      name          TEXT,
+      started_at    TEXT DEFAULT (datetime('now')),
+      finished_at   TEXT,
+      total         INTEGER DEFAULT 0,
+      valid_count   INTEGER DEFAULT 0,
+      invalid_count INTEGER DEFAULT 0,
+      status        TEXT DEFAULT 'RUNNING'
+    );
+
+    CREATE TABLE IF NOT EXISTS validation_numbers (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id  INTEGER REFERENCES validation_sessions(id) ON DELETE CASCADE,
+      phone       TEXT NOT NULL,
+      exists_wa   INTEGER NOT NULL,
+      jid         TEXT,
+      checked_at  TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_val_session ON validation_numbers(session_id);
+    CREATE INDEX IF NOT EXISTS idx_val_phone ON validation_numbers(phone);
+
+    CREATE TABLE IF NOT EXISTS users (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      username      TEXT NOT NULL UNIQUE,
+      email         TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      name          TEXT NOT NULL,
+      created_at    TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS organizations (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      name          TEXT NOT NULL,
+      slug          TEXT NOT NULL UNIQUE,
+      owner_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at    TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS organization_members (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role            TEXT NOT NULL DEFAULT 'member',
+      joined_at       TEXT DEFAULT (datetime('now')),
+      UNIQUE(organization_id, user_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS organization_invites (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      code            TEXT NOT NULL UNIQUE,
+      role            TEXT NOT NULL DEFAULT 'member',
+      created_by      INTEGER NOT NULL REFERENCES users(id),
+      created_at      TEXT DEFAULT (datetime('now')),
+      expires_at      TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+    CREATE INDEX IF NOT EXISTS idx_org_members_org ON organization_members(organization_id);
+    CREATE INDEX IF NOT EXISTS idx_org_members_user ON organization_members(user_id);
+    CREATE INDEX IF NOT EXISTS idx_invites_code ON organization_invites(code);
   `);
+
+  const crypto = require('crypto');
+  const existingJwt = db.prepare('SELECT value FROM settings WHERE key = ?').get('jwt_secret');
+  if (!existingJwt) {
+    const secret = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('jwt_secret', secret);
+  }
+
+  const existingRefreshJwt = db.prepare('SELECT value FROM settings WHERE key = ?').get('jwt_refresh_secret');
+  if (!existingRefreshJwt) {
+    const refreshSecret = process.env.JWT_REFRESH_SECRET || crypto.randomBytes(32).toString('hex');
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('jwt_refresh_secret', refreshSecret);
+  }
 
   const statsCount = db.prepare('SELECT COUNT(*) as count FROM phone_stats').get().count;
   if (statsCount === 0) {
@@ -116,6 +193,16 @@ function initializeDatabase() {
 
   console.log('[DB] ✅ Banco de dados inicializado');
 }
+
+db.getJwtSecret = function () {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('jwt_secret');
+  return row ? row.value : process.env.JWT_SECRET;
+};
+
+db.getJwtRefreshSecret = function () {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('jwt_refresh_secret');
+  return row ? row.value : process.env.JWT_REFRESH_SECRET;
+};
 
 initializeDatabase();
 

@@ -19,6 +19,8 @@ const contactsRoutes = require('./routes/contacts');
 const configRoutes = require('./routes/config');
 const dispatchRoutes = require('./routes/dispatch');
 const filesRoutes = require('./routes/files');
+const validatorRoutes = require('./routes/validator');
+const organizationsRoutes = require('./routes/organizations');
 const authMiddleware = require('./middleware/auth');
 
 const app = express();
@@ -32,10 +34,12 @@ app.use(cookieParser());
 app.use(authMiddleware);
 
 app.use('/api/auth', authRoutes);
+app.use('/api/organizations', organizationsRoutes);
 app.use('/api/contacts', contactsRoutes);
 app.use('/api/settings', configRoutes);
 app.use('/api/dispatch', dispatchRoutes);
 app.use('/api/files', filesRoutes);
+app.use('/api/validator', validatorRoutes);
 
 app.get('/api/bot/status', (req, res) => {
   res.json({ status: botStatus, pairingCode: lastPairingCode });
@@ -90,7 +94,7 @@ wss.on('connection', (ws, req) => {
   const token = url.searchParams.get('token');
 
   try {
-    jwt.verify(token, process.env.JWT_SECRET);
+    jwt.verify(token, db.getJwtSecret());
   } catch {
     ws.close(4001, 'Não autorizado');
     return;
@@ -154,6 +158,7 @@ function startBotProcess() {
         botStatus = 'connected';
         lastPairingCode = null;
         dispatchRoutes.updateBotStatus('connected');
+        validatorRoutes.updateBotStatus('connected');
         broadcastWS({ type: 'BOT_STATUS', status: 'connected' });
         break;
 
@@ -161,17 +166,23 @@ function startBotProcess() {
         botStatus = 'disconnected';
         lastPairingCode = null;
         dispatchRoutes.updateBotStatus('disconnected');
+        validatorRoutes.updateBotStatus('disconnected');
         broadcastWS({ type: 'BOT_STATUS', status: 'disconnected' });
         break;
 
       case 'BOT_STATUS':
         botStatus = msg.status;
         dispatchRoutes.updateBotStatus(msg.status);
+        validatorRoutes.updateBotStatus(msg.status);
         broadcastWS({ type: 'BOT_STATUS', status: msg.status });
         break;
 
       case 'PROGRESS':
         dispatchRoutes.handleProgress(msg.data);
+        break;
+
+      case 'VALIDATION_PROGRESS':
+        validatorRoutes.handleProgress(msg.data);
         break;
 
       case 'ERROR':
@@ -185,6 +196,7 @@ function startBotProcess() {
     console.log(`[API] Bot encerrado com código ${code}`);
     botStatus = 'disconnected';
     dispatchRoutes.updateBotStatus('disconnected');
+    validatorRoutes.updateBotStatus('disconnected');
     broadcastWS({ type: 'BOT_STATUS', status: 'disconnected' });
 
     if (code !== 0) {
@@ -194,6 +206,7 @@ function startBotProcess() {
   });
 
   dispatchRoutes.init(botProcess, broadcastWS);
+  validatorRoutes.init(botProcess, broadcastWS);
 }
 
 let scheduledJob = null;

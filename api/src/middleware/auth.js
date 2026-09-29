@@ -1,28 +1,29 @@
 const jwt = require('jsonwebtoken');
-
-const PUBLIC_ROUTES = [
-  '/api/auth/login',
-  '/api/auth/refresh'
-];
+const db = require('../db');
 
 function authMiddleware(req, res, next) {
-
-  if (PUBLIC_ROUTES.some(route => req.path === route)) {
-    return next();
-  }
+  const isPublic =
+    req.path === '/api/auth/setup-status' ||
+    req.path === '/api/auth/setup' ||
+    req.path === '/api/auth/login' ||
+    req.path === '/api/auth/refresh' ||
+    (req.method === 'GET' && req.path.startsWith('/api/organizations/invites/')) ||
+    (req.method === 'POST' && /\/api\/organizations\/invites\/[^/]+\/accept/.test(req.path));
 
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
+    if (isPublic) return next();
     return res.status(401).json({ error: 'Não autorizado — token ausente' });
   }
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(token, db.getJwtSecret());
     req.user = payload;
     next();
   } catch (err) {
+    if (isPublic) return next();
     return res.status(401).json({ error: 'Token inválido ou expirado' });
   }
 }

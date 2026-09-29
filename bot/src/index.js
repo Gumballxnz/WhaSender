@@ -3,11 +3,13 @@ const { Boom } = require('@hapi/boom');
 const path = require('path');
 const pino = require('pino');
 const { sendQueue } = require('./sender');
+const { validateQueue } = require('./validator');
 
 const SESSION_DIR = process.env.SESSION_PATH || path.join(__dirname, 'session');
 
 let sock = null;
 let dispatchControl = { stop: false };
+let validationControl = { stop: false };
 let isConnected = false;
 let pairingPhoneNumber = null;
 let pairingCodeRequested = false;
@@ -206,6 +208,31 @@ process.on('message', async (msg) => {
     case 'STOP_DISPATCH': {
       console.log('[Bot] ⛔ Parando disparo...');
       dispatchControl.stop = true;
+      break;
+    }
+
+    case 'START_VALIDATION': {
+      const { sessionId, numbers, chunkSize, delayMs } = msg.payload;
+      validationControl = { stop: false };
+      validateQueue(
+        () => sock,
+        numbers,
+        chunkSize,
+        delayMs,
+        (progress) => {
+          process.send?.({
+            type: 'VALIDATION_PROGRESS',
+            data: { sessionId, ...progress },
+          });
+        },
+        validationControl
+      );
+      break;
+    }
+
+    case 'STOP_VALIDATION': {
+      console.log('[Bot] ⛔ Parando validação...');
+      validationControl.stop = true;
       break;
     }
 

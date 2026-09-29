@@ -1,20 +1,40 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { Zap, Eye, EyeOff, Loader2 } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import api from '../services/api';
 
 function Login() {
   const navigate = useNavigate();
-  const setToken = useAuthStore((s) => s.setToken);
+  const setAuth = useAuthStore((s) => s.setAuth);
+  const setNeedsSetup = useAuthStore((s) => s.setNeedsSetup);
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [checkingSetup, setCheckingSetup] = useState(true);
   const [attempts, setAttempts] = useState(0);
   const [blocked, setBlocked] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    api.get('/auth/setup-status')
+      .then(({ data }) => {
+        if (!isMounted) return;
+        setNeedsSetup(data.needsSetup);
+        if (data.needsSetup) {
+          navigate('/setup', { replace: true });
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (isMounted) setCheckingSetup(false);
+      });
+
+    return () => { isMounted = false; };
+  }, [navigate, setNeedsSetup]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -36,15 +56,39 @@ function Login() {
 
     try {
       const { data } = await api.post('/auth/login', { username, password });
-      setToken(data.accessToken);
+      setAuth({
+        token: data.accessToken,
+        user: data.user,
+        organization: data.organization,
+        organizations: data.organizations,
+      });
       navigate('/dashboard');
     } catch (err) {
+      if (err.response?.data?.needsSetup) {
+        navigate('/setup');
+        return;
+      }
       setAttempts((a) => a + 1);
       setError(err.response?.data?.error || 'Erro de conexão. Tente novamente.');
     } finally {
       setLoading(false);
     }
   };
+
+  if (checkingSetup) {
+    return (
+      <div className="login-page">
+        <div className="login-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
+          <div className="skeleton" style={{ width: '60px', height: '60px', borderRadius: '12px' }} />
+          <div className="skeleton" style={{ width: '180px', height: '24px' }} />
+          <div className="skeleton" style={{ width: '240px', height: '14px' }} />
+          <div className="skeleton" style={{ width: '100%', height: '44px', marginTop: '16px' }} />
+          <div className="skeleton" style={{ width: '100%', height: '44px' }} />
+          <div className="skeleton" style={{ width: '100%', height: '44px' }} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="login-page">
@@ -64,12 +108,12 @@ function Login() {
 
         <form className="login-form" onSubmit={handleSubmit}>
           <div className="input-group">
-            <label htmlFor="login-username">Usuário</label>
+            <label htmlFor="login-username">Usuário ou E-mail</label>
             <input
               id="login-username"
               type="text"
               className="input"
-              placeholder="Digite seu usuário"
+              placeholder="Digite seu usuário ou e-mail"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               disabled={loading || blocked}
