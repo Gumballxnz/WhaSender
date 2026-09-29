@@ -2,11 +2,16 @@ const jwt = require('jsonwebtoken');
 const db = require('../db');
 
 function authMiddleware(req, res, next) {
+  if (!req.path.startsWith('/api')) {
+    return next();
+  }
+
   const isPublic =
     req.path === '/api/auth/setup-status' ||
     req.path === '/api/auth/setup' ||
     req.path === '/api/auth/login' ||
     req.path === '/api/auth/refresh' ||
+    req.path === '/api/health' ||
     (req.method === 'GET' && req.path.startsWith('/api/organizations/invites/')) ||
     (req.method === 'POST' && /\/api\/organizations\/invites\/[^/]+\/accept/.test(req.path));
 
