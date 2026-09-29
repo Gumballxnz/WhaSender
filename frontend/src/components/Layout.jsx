@@ -190,7 +190,7 @@ function Layout() {
           </div>
         </div>
 
-        <div ref={orgDropdownRef} style={{ position: 'relative', margin: '12px 14px' }}>
+        <div ref={orgDropdownRef} style={{ position: 'relative', margin: '10px 14px', flexShrink: 0 }}>
           <button
             type="button"
             onClick={() => setShowOrgDropdown(!showOrgDropdown)}
