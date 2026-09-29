@@ -1,17 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-
-function promiseWithTimeout(promise, ms, errorMsg = 'Timeout da operação esgotado') {
-  let timeoutId;
-  const timeoutPromise = new Promise((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new Error(errorMsg));
-    }, ms);
-  });
-  return Promise.race([promise, timeoutPromise]).finally(() => {
-    clearTimeout(timeoutId);
-  });
-}
+const { promiseWithTimeout, sleep } = require('./utils');
 
 async function sendQueue(getSock, queue, delayMs, onProgress, control, startIndex = 0, batchSize = 0, batchPauseMs = 0, maxPauses = 0) {
   const total = queue.length;
@@ -232,10 +221,6 @@ function getMimeType(fileName) {
     '.zip': 'application/zip',
   };
   return mimeTypes[ext] || 'application/octet-stream';
-}
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 module.exports = { sendQueue };

@@ -22,6 +22,8 @@ const filesRoutes = require('./routes/files');
 const validatorRoutes = require('./routes/validator');
 const organizationsRoutes = require('./routes/organizations');
 const authMiddleware = require('./middleware/auth');
+const { FILES_PATH } = require('./utils/paths');
+const { cleanPhone, toJid } = require('./utils/phone');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -49,12 +51,12 @@ app.post('/api/bot/pair', (req, res) => {
   const { phone } = req.body;
   if (!phone) return res.status(400).json({ error: 'Número de telefone é obrigatório' });
 
-  const cleanPhone = phone.replace(/\D/g, '');
-  if (cleanPhone.length < 10) return res.status(400).json({ error: 'Número de telefone inválido' });
+  const cleaned = cleanPhone(phone);
+  if (cleaned.length < 10) return res.status(400).json({ error: 'Número de telefone inválido' });
 
   lastPairingCode = null;
-  botProcess?.send({ type: 'SET_PAIRING_PHONE', phone: cleanPhone });
-  res.json({ message: 'Código de pareamento será gerado. Aguarde...', phone: cleanPhone });
+  botProcess?.send({ type: 'SET_PAIRING_PHONE', phone: cleaned });
+  res.json({ message: 'Código de pareamento será gerado. Aguarde...', phone: cleaned });
 });
 
 app.post('/api/bot/qr', (req, res) => {
@@ -260,8 +262,8 @@ function setupSchedule() {
       .run(contacts.length, 'RUNNING');
 
     const queue = contacts.map(c => ({
-      jid: `${c.phone.replace(/\D/g, '')}@s.whatsapp.net`,
-      filePath: path.join(process.env.FILES_PATH || path.resolve(__dirname, '../../data/arquivos'), c.file_name),
+      jid: toJid(c.phone),
+      filePath: path.join(FILES_PATH, c.file_name),
       fileName: c.file_name,
       contactName: c.name,
       contactId: c.id,

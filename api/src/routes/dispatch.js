@@ -2,9 +2,10 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const db = require('../db');
+const { FILES_PATH } = require('../utils/paths');
+const { toJid } = require('../utils/phone');
+const { sortFilesNumerically } = require('../utils/files');
 const router = express.Router();
-
-const FILES_PATH = process.env.FILES_PATH || path.join(__dirname, '../../../data/arquivos');
 
 let botProcess = null;
 let broadcastWS = null;
@@ -58,11 +59,6 @@ function updateBotStatus(status) {
   }
 }
 
-function toJid(phone) {
-  const digits = phone.replace(/\D/g, '');
-  return `${digits}@s.whatsapp.net`;
-}
-
 function buildQueue(maxCount, excludeSessionId = null) {
   const fileNamesFromDisk = fs.readdirSync(FILES_PATH).filter(f => f.toLowerCase().endsWith('.xlsx'));
 
@@ -93,11 +89,7 @@ function buildQueue(maxCount, excludeSessionId = null) {
       };
     });
 
-  queue.sort((a, b) => {
-    const numA = parseInt(a.fileName.match(/\d+/)?.[0] || 0);
-    const numB = parseInt(b.fileName.match(/\d+/)?.[0] || 0);
-    return numA - numB;
-  });
+  sortFilesNumerically(queue, (item) => item.fileName);
 
   return queue.slice(0, maxCount);
 }

@@ -1,10 +1,4 @@
-function promiseWithTimeout(promise, ms, errorMsg = 'Timeout da operação esgotado') {
-  let timeoutId;
-  const timeoutPromise = new Promise((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(errorMsg)), ms);
-  });
-  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
-}
+const { promiseWithTimeout, sleep } = require('./utils');
 
 async function validateQueue(getSock, numbers, chunkSize = 40, delayMs = 300, onProgress, control) {
   const total = numbers.length;
@@ -80,7 +74,7 @@ async function validateQueue(getSock, numbers, chunkSize = 40, delayMs = 300, on
     }
 
     if (i + chunkSize < total && delayMs > 0) {
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      await sleep(delayMs);
     }
   }
 }

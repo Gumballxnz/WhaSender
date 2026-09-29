@@ -3,6 +3,8 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../db');
+const { issueAuthTokens } = require('../utils/token');
+const { normalizeEmail, isValidEmail, generateUniqueSlug } = require('../utils/validators');
 const router = express.Router();
 
 function getOrgContext(req, res) {
@@ -35,13 +37,7 @@ router.post('/', (req, res) => {
   }
 
   const cleanName = name.trim();
-  const baseSlug = cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'org';
-  let slug = baseSlug;
-  let counter = 1;
-
-  while (db.prepare('SELECT id FROM organizations WHERE slug = ?').get(slug)) {
-    slug = `${baseSlug}-${counter++}`;
-  }
+  const slug = generateUniqueSlug(db, cleanName);
 
   try {
     const createTx = db.transaction(() => {
@@ -56,25 +52,7 @@ router.post('/', (req, res) => {
     const orgId = createTx();
 
     const user = db.prepare('SELECT id, username, email, name FROM users WHERE id = ?').get(req.user.id);
-    const tokenPayload = {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      name: user.name,
-      organizationId: orgId,
-      role: 'owner',
-    };
-
-    const accessToken = jwt.sign(tokenPayload, db.getJwtSecret(), { expiresIn: '15m' });
-    const refreshToken = jwt.sign({ ...tokenPayload, type: 'refresh' }, db.getJwtRefreshSecret(), { expiresIn: '7d' });
-
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/api/auth',
-    });
+    const { accessToken } = issueAuthTokens(res, user, orgId, 'owner');
 
     res.status(201).json({
       success: true,
@@ -253,15 +231,11 @@ router.post('/invites', (req, res) => {
   }
 
   const { email, role: rawRole, expiresInDays } = req.body;
-  if (!email || !email.trim()) {
-    return res.status(400).json({ error: 'O e-mail do convidado é obrigatório' });
+  if (!email || !isValidEmail(email)) {
+    return res.status(400).json({ error: 'O e-mail do convidado é inválido ou ausente' });
   }
 
-  const cleanEmail = email.trim().toLowerCase();
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(cleanEmail)) {
-    return res.status(400).json({ error: 'Formato de e-mail inválido' });
-  }
+  const cleanEmail = normalizeEmail(email);
 
   const existingMember = db.prepare(`
     SELECT u.id FROM users u
@@ -414,31 +388,13 @@ router.post('/invites/:code/accept', (req, res) => {
   });
 
   const newUserId = registrationTx();
-
-  const tokenPayload = {
-    id: newUserId,
-    username: cleanUsername,
-    email: cleanEmail,
-    name: name.trim(),
-    organizationId: invite.organization_id,
-    role: invite.role,
-  };
-
-  const accessToken = jwt.sign(tokenPayload, db.getJwtSecret(), { expiresIn: '15m' });
-  const refreshToken = jwt.sign({ ...tokenPayload, type: 'refresh' }, db.getJwtRefreshSecret(), { expiresIn: '7d' });
-
-  res.cookie('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    path: '/api/auth',
-  });
+  const createdUser = { id: newUserId, username: cleanUsername, email: cleanEmail, name: name.trim() };
+  const { accessToken, expiresIn } = issueAuthTokens(res, createdUser, invite.organization_id, invite.role);
 
   res.json({
     accessToken,
-    expiresIn: 900,
-    user: { id: newUserId, username: cleanUsername, email: cleanEmail, name: name.trim() },
+    expiresIn,
+    user: createdUser,
     organization: { id: invite.organization_id, name: invite.organization_name, slug: invite.organization_slug, role: invite.role },
   });
 });

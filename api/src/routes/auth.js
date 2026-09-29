@@ -3,6 +3,8 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 const db = require('../db');
+const { issueAuthTokens } = require('../utils/token');
+const { normalizeEmail, isValidEmail, generateUniqueSlug } = require('../utils/validators');
 const router = express.Router();
 
 const loginLimiter = rateLimit({
@@ -33,10 +35,14 @@ router.post('/setup', (req, res) => {
     return res.status(400).json({ error: 'A senha deve ter no mínimo 6 caracteres' });
   }
 
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ error: 'Formato de e-mail inválido' });
+  }
+
   const cleanUsername = username.toLowerCase().trim();
-  const cleanEmail = email.toLowerCase().trim();
+  const cleanEmail = normalizeEmail(email);
   const cleanOrgName = organizationName.trim();
-  const slug = cleanOrgName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'org';
+  const slug = generateUniqueSlug(db, cleanOrgName);
 
   try {
     const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
@@ -71,30 +77,13 @@ router.post('/setup', (req, res) => {
 
     const { userId, orgId } = setupTransaction();
 
-    const tokenPayload = {
-      id: userId,
-      username: cleanUsername,
-      email: cleanEmail,
-      name: name.trim(),
-      organizationId: orgId,
-      role: 'owner',
-    };
-
-    const accessToken = jwt.sign(tokenPayload, db.getJwtSecret(), { expiresIn: '15m' });
-    const refreshToken = jwt.sign({ ...tokenPayload, type: 'refresh' }, db.getJwtRefreshSecret(), { expiresIn: '7d' });
-
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/api/auth',
-    });
+    const createdUser = { id: userId, username: cleanUsername, email: cleanEmail, name: name.trim() };
+    const { accessToken, expiresIn } = issueAuthTokens(res, createdUser, orgId, 'owner');
 
     res.json({
       accessToken,
-      expiresIn: 900,
-      user: { id: userId, username: cleanUsername, email: cleanEmail, name: name.trim() },
+      expiresIn,
+      user: createdUser,
       organization: { id: orgId, name: cleanOrgName, slug, role: 'owner' },
     });
   } catch (err) {
@@ -136,30 +125,11 @@ router.post('/login', loginLimiter, (req, res) => {
     `).all(user.id);
 
     const activeOrg = organizations[0] || { id: null, name: 'Padrão', slug: 'padrao', role: 'member' };
-
-    const tokenPayload = {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      name: user.name,
-      organizationId: activeOrg.id,
-      role: activeOrg.role,
-    };
-
-    const accessToken = jwt.sign(tokenPayload, db.getJwtSecret(), { expiresIn: '15m' });
-    const refreshToken = jwt.sign({ ...tokenPayload, type: 'refresh' }, db.getJwtRefreshSecret(), { expiresIn: '7d' });
-
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/api/auth',
-    });
+    const { accessToken, expiresIn } = issueAuthTokens(res, user, activeOrg.id, activeOrg.role);
 
     res.json({
       accessToken,
-      expiresIn: 900,
+      expiresIn,
       user: { id: user.id, username: user.username, email: user.email, name: user.name },
       organization: activeOrg,
       organizations,
@@ -211,12 +181,10 @@ router.put('/profile', (req, res) => {
   }
 
   const cleanName = name.trim();
-  const cleanEmail = email.trim().toLowerCase();
-
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(cleanEmail)) {
+  if (!isValidEmail(email)) {
     return res.status(400).json({ error: 'Formato de e-mail inválido' });
   }
+  const cleanEmail = normalizeEmail(email);
 
   try {
     const existing = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(cleanEmail, req.user.id);
@@ -227,26 +195,7 @@ router.put('/profile', (req, res) => {
     db.prepare('UPDATE users SET name = ?, email = ? WHERE id = ?').run(cleanName, cleanEmail, req.user.id);
 
     const user = db.prepare('SELECT id, username, email, name, created_at FROM users WHERE id = ?').get(req.user.id);
-
-    const tokenPayload = {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      name: user.name,
-      organizationId: req.user.organizationId,
-      role: req.user.role,
-    };
-
-    const accessToken = jwt.sign(tokenPayload, db.getJwtSecret(), { expiresIn: '15m' });
-    const refreshToken = jwt.sign({ ...tokenPayload, type: 'refresh' }, db.getJwtRefreshSecret(), { expiresIn: '7d' });
-
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/api/auth',
-    });
+    const { accessToken } = issueAuthTokens(res, user, req.user.organizationId, req.user.role);
 
     res.json({
       success: true,
@@ -317,29 +266,11 @@ router.post('/switch-org', (req, res) => {
 
     const user = db.prepare('SELECT id, username, email, name FROM users WHERE id = ?').get(req.user.id);
 
-    const tokenPayload = {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      name: user.name,
-      organizationId: membership.id,
-      role: membership.role,
-    };
-
-    const accessToken = jwt.sign(tokenPayload, db.getJwtSecret(), { expiresIn: '15m' });
-    const refreshToken = jwt.sign({ ...tokenPayload, type: 'refresh' }, db.getJwtRefreshSecret(), { expiresIn: '7d' });
-
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/api/auth',
-    });
+    const { accessToken, expiresIn } = issueAuthTokens(res, user, membership.id, membership.role);
 
     res.json({
       accessToken,
-      expiresIn: 900,
+      expiresIn,
       organization: membership,
     });
   } catch (err) {

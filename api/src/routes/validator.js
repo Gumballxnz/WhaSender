@@ -4,14 +4,14 @@ const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
 const db = require('../db');
+const { FILES_PATH } = require('../utils/paths');
+const { cleanPhone } = require('../utils/phone');
 const router = express.Router();
 
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 },
 });
-
-const FILES_PATH = process.env.FILES_PATH || path.join(__dirname, '../../../data/arquivos');
 
 let botProcess = null;
 let broadcastWS = null;
@@ -100,7 +100,7 @@ function extractPhonesFromBuffer(buffer, originalname) {
       if (!Array.isArray(row)) continue;
       for (const cell of row) {
         if (!cell) continue;
-        const clean = String(cell).replace(/\D/g, '');
+        const clean = cleanPhone(cell);
         if (clean.length >= 8 && clean.length <= 15) {
           phones.push(clean);
           break;
@@ -111,7 +111,7 @@ function extractPhonesFromBuffer(buffer, originalname) {
     const text = buffer.toString('utf8');
     const lines = text.split(/[\r\n,;]+/);
     for (const line of lines) {
-      const clean = line.replace(/\D/g, '');
+      const clean = cleanPhone(line);
       if (clean.length >= 8 && clean.length <= 15) {
         phones.push(clean);
       }
@@ -137,7 +137,7 @@ router.post('/start', upload.single('file'), (req, res) => {
     phones = extractPhonesFromBuffer(req.file.buffer, req.file.originalname);
   } else if (req.body.phones) {
     const raw = typeof req.body.phones === 'string' ? req.body.phones.split(/[\r\n,;]+/) : req.body.phones;
-    phones = [...new Set(raw.map((p) => String(p).replace(/\D/g, '')).filter((p) => p.length >= 8 && p.length <= 15))];
+    phones = [...new Set(raw.map((p) => cleanPhone(p)).filter((p) => p.length >= 8 && p.length <= 15))];
   }
 
   if (phones.length === 0) {

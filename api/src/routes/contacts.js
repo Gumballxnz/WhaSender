@@ -1,5 +1,6 @@
 const express = require('express');
 const db = require('../db');
+const { cleanPhone } = require('../utils/phone');
 const router = express.Router();
 
 router.get('/', (req, res) => {
@@ -18,15 +19,15 @@ router.post('/', (req, res) => {
     return res.status(400).json({ error: 'Nome, telefone e nome do arquivo são obrigatórios' });
   }
 
-  const cleanPhone = phone.replace(/\D/g, '');
+  const cleaned = cleanPhone(phone);
 
   try {
     const stmt = db.prepare('INSERT INTO contacts (name, phone, file_name) VALUES (?, ?, ?)');
-    const result = stmt.run(name, cleanPhone, file_name);
+    const result = stmt.run(name, cleaned, file_name);
     res.status(201).json({
       id: result.lastInsertRowid,
       name,
-      phone: cleanPhone,
+      phone: cleaned,
       file_name,
       active: 1,
     });
@@ -49,7 +50,7 @@ router.put('/:id', (req, res) => {
     }
 
     const updatedName = name || existing.name;
-    const updatedPhone = phone ? phone.replace(/\D/g, '') : existing.phone;
+    const updatedPhone = phone ? cleanPhone(phone) : existing.phone;
     const updatedFile = file_name || existing.file_name;
     const updatedActive = active !== undefined ? active : existing.active;
 
@@ -96,8 +97,8 @@ router.post('/import', (req, res) => {
         skipped++;
         continue;
       }
-      const cleanPhone = c.phone.toString().replace(/\D/g, '');
-      const result = stmt.run(c.name, cleanPhone, c.file_name);
+      const phoneDigits = cleanPhone(c.phone);
+      const result = stmt.run(c.name, phoneDigits, c.file_name);
       if (result.changes > 0) {
         inserted++;
       } else {

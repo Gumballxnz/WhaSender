@@ -3,21 +3,9 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const db = require('../db');
+const { FILES_PATH, SESSIONS_PATH } = require('../utils/paths');
+const { sortFilesNumerically } = require('../utils/files');
 const router = express.Router();
-
-const FILES_PATH = process.env.FILES_PATH || path.join(__dirname, '../../../data/arquivos');
-
-if (!fs.existsSync(FILES_PATH)) {
-  fs.mkdirSync(FILES_PATH, { recursive: true });
-}
-const SESSIONS_PATH = process.env.SESSIONS_PATH || path.join(__dirname, '../../../data/sessions');
-try {
-  if (!fs.existsSync(SESSIONS_PATH)) {
-    fs.mkdirSync(SESSIONS_PATH, { recursive: true });
-  }
-} catch (err) {
-  console.warn(`[Files API] Warning: Não foi possível criar SESSIONS_PATH (${SESSIONS_PATH}): ${err.message}`);
-}
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, FILES_PATH),
@@ -56,17 +44,13 @@ router.get('/limit', (req, res) => {
 
 router.get('/', (req, res) => {
   try {
-    const files = fs.readdirSync(FILES_PATH)
+    const rawFiles = fs.readdirSync(FILES_PATH)
       .filter(f => f.endsWith('.xlsx'))
       .map(f => ({
         name: f,
         size: fs.statSync(path.join(FILES_PATH, f)).size,
-      }))
-      .sort((a, b) => {
-        const numA = parseInt(a.name.match(/\d+/)?.[0] || 0);
-        const numB = parseInt(b.name.match(/\d+/)?.[0] || 0);
-        return numA - numB;
-      });
+      }));
+    const files = sortFilesNumerically(rawFiles);
 
     res.json({ count: files.length, files });
   } catch (err) {
