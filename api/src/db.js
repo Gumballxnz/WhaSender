@@ -167,13 +167,13 @@ function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_org_members_org ON organization_members(organization_id);
     CREATE INDEX IF NOT EXISTS idx_org_members_user ON organization_members(user_id);
     CREATE INDEX IF NOT EXISTS idx_invites_code ON organization_invites(code);
-    CREATE INDEX IF NOT EXISTS idx_invites_email ON organization_invites(target_email);
   `);
 
   const inviteColumns = db.prepare("PRAGMA table_info(organization_invites)").all();
   if (!inviteColumns.some(c => c.name === 'target_email')) {
     db.exec("ALTER TABLE organization_invites ADD COLUMN target_email TEXT;");
   }
+  db.exec("CREATE INDEX IF NOT EXISTS idx_invites_email ON organization_invites(target_email);");
 
   const crypto = require('crypto');
   const existingJwt = db.prepare('SELECT value FROM settings WHERE key = ?').get('jwt_secret');
