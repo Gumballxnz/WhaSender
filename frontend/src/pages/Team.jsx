@@ -15,6 +15,7 @@ export default function Team() {
   const [loadingInvites, setLoadingInvites] = useState(true);
 
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('member');
   const [inviteDays, setInviteDays] = useState(7);
   const [generatingInvite, setGeneratingInvite] = useState(false);
@@ -84,9 +85,15 @@ export default function Team() {
 
   const handleCreateInvite = async (e) => {
     e.preventDefault();
+    if (!inviteEmail.trim()) {
+      toast.error('Informe o e-mail do convidado');
+      return;
+    }
+
     setGeneratingInvite(true);
     try {
       const { data } = await api.post('/organizations/invites', {
+        email: inviteEmail.trim(),
         role: inviteRole,
         expiresInDays: inviteDays,
       });
@@ -294,6 +301,7 @@ export default function Team() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
+                  <th style={{ textAlign: 'left', padding: '12px 16px' }}>Destinatário</th>
                   <th style={{ textAlign: 'left', padding: '12px 16px' }}>Código do Convite</th>
                   <th style={{ textAlign: 'center', padding: '12px 16px' }}>Função Concedida</th>
                   <th style={{ textAlign: 'left', padding: '12px 16px' }}>Criado Por</th>
@@ -306,7 +314,10 @@ export default function Team() {
                   const inviteUrl = `${window.location.origin}/invite?code=${inv.code}`;
                   return (
                     <tr key={inv.id} style={{ borderTop: '1px solid var(--border-default)' }}>
-                      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text-primary)' }}>
+                      <td style={{ padding: '12px 16px', color: 'var(--text-primary)', fontSize: '13px', fontWeight: 500 }}>
+                        {inv.target_email || <span style={{ color: 'var(--text-muted)' }}>Qualquer e-mail</span>}
+                      </td>
+                      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text-secondary)' }}>
                         {inv.code}
                       </td>
                       <td style={{ padding: '12px 16px', textAlign: 'center' }}>
@@ -388,6 +399,22 @@ export default function Team() {
               </div>
             ) : (
               <form onSubmit={handleCreateInvite} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div className="input-group">
+                  <label>E-mail do Convidado</label>
+                  <input
+                    type="email"
+                    className="input"
+                    placeholder="exemplo@empresa.com"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    required
+                    autoFocus
+                  />
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                    O link será exclusivo para este e-mail. Apenas o portador deste endereço conseguirá aceitar.
+                  </span>
+                </div>
+
                 <div className="input-group">
                   <label>Função no Time</label>
                   <select

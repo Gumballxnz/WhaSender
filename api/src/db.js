@@ -155,6 +155,7 @@ function initializeDatabase() {
       id              INTEGER PRIMARY KEY AUTOINCREMENT,
       organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
       code            TEXT NOT NULL UNIQUE,
+      target_email    TEXT,
       role            TEXT NOT NULL DEFAULT 'member',
       created_by      INTEGER NOT NULL REFERENCES users(id),
       created_at      TEXT DEFAULT (datetime('now')),
@@ -166,7 +167,13 @@ function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_org_members_org ON organization_members(organization_id);
     CREATE INDEX IF NOT EXISTS idx_org_members_user ON organization_members(user_id);
     CREATE INDEX IF NOT EXISTS idx_invites_code ON organization_invites(code);
+    CREATE INDEX IF NOT EXISTS idx_invites_email ON organization_invites(target_email);
   `);
+
+  const inviteColumns = db.prepare("PRAGMA table_info(organization_invites)").all();
+  if (!inviteColumns.some(c => c.name === 'target_email')) {
+    db.exec("ALTER TABLE organization_invites ADD COLUMN target_email TEXT;");
+  }
 
   const crypto = require('crypto');
   const existingJwt = db.prepare('SELECT value FROM settings WHERE key = ?').get('jwt_secret');

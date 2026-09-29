@@ -200,6 +200,99 @@ router.get('/me', (req, res) => {
   }
 });
 
+router.put('/profile', (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ error: 'Não autenticado' });
+  }
+
+  const { name, email } = req.body;
+  if (!name || !email) {
+    return res.status(400).json({ error: 'Nome e e-mail são obrigatórios' });
+  }
+
+  const cleanName = name.trim();
+  const cleanEmail = email.trim().toLowerCase();
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(cleanEmail)) {
+    return res.status(400).json({ error: 'Formato de e-mail inválido' });
+  }
+
+  try {
+    const existing = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(cleanEmail, req.user.id);
+    if (existing) {
+      return res.status(400).json({ error: 'Este e-mail já está sendo utilizado por outro usuário' });
+    }
+
+    db.prepare('UPDATE users SET name = ?, email = ? WHERE id = ?').run(cleanName, cleanEmail, req.user.id);
+
+    const user = db.prepare('SELECT id, username, email, name, created_at FROM users WHERE id = ?').get(req.user.id);
+
+    const tokenPayload = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      name: user.name,
+      organizationId: req.user.organizationId,
+      role: req.user.role,
+    };
+
+    const accessToken = jwt.sign(tokenPayload, db.getJwtSecret(), { expiresIn: '15m' });
+    const refreshToken = jwt.sign({ ...tokenPayload, type: 'refresh' }, db.getJwtRefreshSecret(), { expiresIn: '7d' });
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/auth',
+    });
+
+    res.json({
+      success: true,
+      message: 'Perfil atualizado com sucesso',
+      accessToken,
+      user,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao atualizar perfil', details: err.message });
+  }
+});
+
+router.put('/password', (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ error: 'Não autenticado' });
+  }
+
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'Senha atual e nova senha são obrigatórias' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'A nova senha deve ter no mínimo 6 caracteres' });
+  }
+
+  try {
+    const user = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    const isMatch = bcrypt.compareSync(currentPassword, user.password_hash);
+    if (!isMatch) {
+      return res.status(400).json({ error: 'Senha atual incorreta' });
+    }
+
+    const newHash = bcrypt.hashSync(newPassword, 10);
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, req.user.id);
+
+    res.json({ success: true, message: 'Senha alterada com sucesso' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao alterar senha', details: err.message });
+  }
+});
+
 router.post('/switch-org', (req, res) => {
   if (!req.user || !req.user.id) {
     return res.status(401).json({ error: 'Não autenticado' });

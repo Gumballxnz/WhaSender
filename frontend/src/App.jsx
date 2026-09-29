@@ -12,6 +12,7 @@ import Files from './pages/Files';
 import Generator from './pages/Generator';
 import Validator from './pages/Validator';
 import Team from './pages/Team';
+import Profile from './pages/Profile';
 
 function ProtectedRoute({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -42,6 +43,7 @@ function App() {
           <Route path="dispatch" element={<Dispatch />} />
           <Route path="contacts" element={<Contacts />} />
           <Route path="team" element={<Team />} />
+          <Route path="profile" element={<Profile />} />
           <Route path="settings" element={<Settings />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

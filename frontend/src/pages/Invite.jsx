@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useParams, useNavigate, Link } from 'react-router-dom';
-import { UserPlus, Eye, EyeOff, Loader2, Building2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { UserPlus, Eye, EyeOff, Loader2, Building2, CheckCircle2, AlertCircle, Mail } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useAuthStore from '../store/authStore';
 import api from '../services/api';
@@ -36,6 +36,9 @@ function Invite() {
       .then(({ data }) => {
         if (!isMounted) return;
         setInviteData(data);
+        if (data.targetEmail) {
+          setEmail(data.targetEmail);
+        }
       })
       .catch((err) => {
         if (!isMounted) return;
@@ -79,10 +82,11 @@ function Invite() {
     setError('');
 
     try {
+      const finalEmail = inviteData?.targetEmail || email;
       const { data } = await api.post(`/organizations/invites/${code}/accept`, {
         name,
         username,
-        email,
+        email: finalEmail,
         password,
       });
 
@@ -165,6 +169,26 @@ function Invite() {
           </div>
         </div>
 
+        {inviteData?.targetEmail && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '10px 14px',
+            background: 'rgba(59, 130, 246, 0.1)',
+            border: '1px solid rgba(59, 130, 246, 0.25)',
+            borderRadius: 'var(--radius-md)',
+            marginBottom: '16px',
+            fontSize: '12px',
+            color: 'var(--text-primary)',
+          }}>
+            <Mail size={16} color="var(--info)" style={{ flexShrink: 0 }} />
+            <span>
+              Convite exclusivo para: <strong>{inviteData.targetEmail}</strong>
+            </span>
+          </div>
+        )}
+
         {error && <div className="login-error">{error}</div>}
 
         {isAuthenticated ? (
@@ -172,18 +196,37 @@ function Invite() {
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', textAlign: 'center' }}>
               Conectado como <strong>{user?.name || user?.username}</strong> ({user?.email})
             </p>
-            <button
-              className="btn btn-primary btn-lg"
-              onClick={handleJoinLogged}
-              disabled={submitting}
-              style={{ width: '100%', justifyContent: 'center' }}
-            >
-              {submitting ? (
-                <><Loader2 size={18} className="spin" /> Ingressando...</>
-              ) : (
-                <><CheckCircle2 size={18} /> Aceitar e Ingressar</>
-              )}
-            </button>
+            {inviteData?.targetEmail && user?.email && inviteData.targetEmail.toLowerCase() !== user.email.toLowerCase() ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: 'var(--radius-md)', fontSize: '13px', color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                  ⚠️ Você está conectado como <strong>{user?.email}</strong>, mas este convite foi enviado exclusivamente para <strong>{inviteData.targetEmail}</strong>.
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    useAuthStore.getState().clearToken();
+                    navigate(`/login?redirect=/invite/${code}`);
+                  }}
+                  style={{ width: '100%', justifyContent: 'center' }}
+                >
+                  Sair e Entrar com o E-mail Convidado
+                </button>
+              </div>
+            ) : (
+              <button
+                className="btn btn-primary btn-lg"
+                onClick={handleJoinLogged}
+                disabled={submitting}
+                style={{ width: '100%', justifyContent: 'center' }}
+              >
+                {submitting ? (
+                  <><Loader2 size={18} className="spin" /> Ingressando...</>
+                ) : (
+                  <><CheckCircle2 size={18} /> Aceitar e Ingressar</>
+                )}
+              </button>
+            )}
           </div>
         ) : (
           <form className="login-form" onSubmit={handleRegisterAndJoin}>
@@ -218,15 +261,17 @@ function Invite() {
               </div>
 
               <div className="input-group">
-                <label htmlFor="inv-email">E-mail</label>
+                <label htmlFor="inv-email">E-mail {inviteData?.targetEmail ? '(Bloqueado)' : ''}</label>
                 <input
                   id="inv-email"
                   type="email"
                   className="input"
                   placeholder="carlos@empresa.com"
-                  value={email}
+                  value={inviteData?.targetEmail || email}
                   onChange={(e) => setEmail(e.target.value)}
-                  disabled={submitting}
+                  disabled={Boolean(inviteData?.targetEmail) || submitting}
+                  readOnly={Boolean(inviteData?.targetEmail)}
+                  style={inviteData?.targetEmail ? { opacity: 0.8, cursor: 'not-allowed' } : {}}
                   autoComplete="email"
                   required
                 />

@@ -35,12 +35,21 @@ const useAuthStore = create((set) => ({
     set({ accessToken: token, isAuthenticated: !!token });
   },
 
+  setUser: (user) => {
+    if (user) {
+      localStorage.setItem('whasender_user', JSON.stringify(user));
+    }
+    set({ user });
+  },
+
   setCurrentOrganization: (organization) => {
     if (organization) {
       localStorage.setItem('whasender_org', JSON.stringify(organization));
     }
     set({ currentOrganization: organization });
   },
+
+  setOrganizations: (organizations) => set({ organizations: organizations || [] }),
 
   setNeedsSetup: (needs) => set({ needsSetup: needs }),
 

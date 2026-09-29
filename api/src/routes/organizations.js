@@ -24,6 +24,96 @@ function getOrgContext(req, res) {
   return membership;
 }
 
+router.post('/', (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ error: 'Não autenticado' });
+  }
+
+  const { name } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'O nome da organização é obrigatório' });
+  }
+
+  const cleanName = name.trim();
+  const baseSlug = cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'org';
+  let slug = baseSlug;
+  let counter = 1;
+
+  while (db.prepare('SELECT id FROM organizations WHERE slug = ?').get(slug)) {
+    slug = `${baseSlug}-${counter++}`;
+  }
+
+  try {
+    const createTx = db.transaction(() => {
+      const orgRes = db.prepare('INSERT INTO organizations (name, slug, owner_id) VALUES (?, ?, ?)').run(cleanName, slug, req.user.id);
+      const orgId = orgRes.lastInsertRowid;
+
+      db.prepare('INSERT INTO organization_members (organization_id, user_id, role) VALUES (?, ?, ?)').run(orgId, req.user.id, 'owner');
+
+      return orgId;
+    });
+
+    const orgId = createTx();
+
+    const user = db.prepare('SELECT id, username, email, name FROM users WHERE id = ?').get(req.user.id);
+    const tokenPayload = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      name: user.name,
+      organizationId: orgId,
+      role: 'owner',
+    };
+
+    const accessToken = jwt.sign(tokenPayload, db.getJwtSecret(), { expiresIn: '15m' });
+    const refreshToken = jwt.sign({ ...tokenPayload, type: 'refresh' }, db.getJwtRefreshSecret(), { expiresIn: '7d' });
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/auth',
+    });
+
+    res.status(201).json({
+      success: true,
+      accessToken,
+      organization: {
+        id: orgId,
+        name: cleanName,
+        slug,
+        role: 'owner',
+        isOwner: true,
+        membersCount: 1,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao criar organização', details: err.message });
+  }
+});
+
+router.get('/my', (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ error: 'Não autenticado' });
+  }
+
+  try {
+    const organizations = db.prepare(`
+      SELECT o.id, o.name, o.slug, om.role, om.joined_at,
+             (SELECT COUNT(*) FROM organization_members WHERE organization_id = o.id) as membersCount
+      FROM organizations o
+      JOIN organization_members om ON o.id = om.organization_id
+      WHERE om.user_id = ?
+      ORDER BY om.id ASC
+    `).all(req.user.id);
+
+    res.json({ organizations });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao listar organizações', details: err.message });
+  }
+});
+
 router.get('/current', (req, res) => {
   const ctx = getOrgContext(req, res);
   if (!ctx) return;
@@ -144,7 +234,7 @@ router.get('/invites', (req, res) => {
   }
 
   const invites = db.prepare(`
-    SELECT oi.id, oi.code, oi.role, oi.created_at, oi.expires_at, u.name as created_by_name
+    SELECT oi.id, oi.code, oi.target_email, oi.role, oi.created_at, oi.expires_at, u.name as created_by_name
     FROM organization_invites oi
     JOIN users u ON oi.created_by = u.id
     WHERE oi.organization_id = ? AND (oi.expires_at IS NULL OR oi.expires_at > datetime('now'))
@@ -162,20 +252,42 @@ router.post('/invites', (req, res) => {
     return res.status(403).json({ error: 'Apenas administradores podem gerar convites' });
   }
 
-  const role = req.body.role === 'admin' ? 'admin' : 'member';
-  const days = parseInt(req.body.expiresInDays, 10) || 7;
+  const { email, role: rawRole, expiresInDays } = req.body;
+  if (!email || !email.trim()) {
+    return res.status(400).json({ error: 'O e-mail do convidado é obrigatório' });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(cleanEmail)) {
+    return res.status(400).json({ error: 'Formato de e-mail inválido' });
+  }
+
+  const existingMember = db.prepare(`
+    SELECT u.id FROM users u
+    JOIN organization_members om ON u.id = om.user_id
+    WHERE om.organization_id = ? AND u.email = ?
+  `).get(ctx.id, cleanEmail);
+
+  if (existingMember) {
+    return res.status(400).json({ error: 'Este e-mail já é membro desta organização' });
+  }
+
+  const role = rawRole === 'admin' ? 'admin' : 'member';
+  const days = parseInt(expiresInDays, 10) || 7;
   const code = crypto.randomBytes(16).toString('hex');
 
   const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
 
   db.prepare(`
-    INSERT INTO organization_invites (organization_id, code, role, created_by, expires_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(ctx.id, code, role, req.user.id, expiresAt);
+    INSERT INTO organization_invites (organization_id, code, target_email, role, created_by, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(ctx.id, code, cleanEmail, role, req.user.id, expiresAt);
 
   res.json({
     code,
     role,
+    targetEmail: cleanEmail,
     expiresAt,
   });
 });
@@ -196,7 +308,7 @@ router.get('/invites/:code', (req, res) => {
   const { code } = req.params;
 
   const invite = db.prepare(`
-    SELECT oi.code, oi.role, oi.expires_at, o.name as organization_name, o.id as organization_id
+    SELECT oi.code, oi.target_email, oi.role, oi.expires_at, o.name as organization_name, o.id as organization_id
     FROM organization_invites oi
     JOIN organizations o ON oi.organization_id = o.id
     WHERE oi.code = ? AND (oi.expires_at IS NULL OR oi.expires_at > datetime('now'))
@@ -209,6 +321,7 @@ router.get('/invites/:code', (req, res) => {
   res.json({
     valid: true,
     organizationName: invite.organization_name,
+    targetEmail: invite.target_email,
     role: invite.role,
     expiresAt: invite.expires_at,
   });
@@ -218,7 +331,7 @@ router.post('/invites/:code/accept', (req, res) => {
   const { code } = req.params;
 
   const invite = db.prepare(`
-    SELECT oi.id as invite_id, oi.organization_id, oi.role, oi.expires_at, o.name as organization_name, o.slug as organization_slug
+    SELECT oi.id as invite_id, oi.organization_id, oi.target_email, oi.role, oi.expires_at, o.name as organization_name, o.slug as organization_slug
     FROM organization_invites oi
     JOIN organizations o ON oi.organization_id = o.id
     WHERE oi.code = ? AND (oi.expires_at IS NULL OR oi.expires_at > datetime('now'))
@@ -229,6 +342,17 @@ router.post('/invites/:code/accept', (req, res) => {
   }
 
   if (req.user && req.user.id) {
+    const user = db.prepare('SELECT email FROM users WHERE id = ?').get(req.user.id);
+    if (!user) {
+      return res.status(401).json({ error: 'Usuário não autenticado' });
+    }
+
+    if (invite.target_email && user.email.toLowerCase() !== invite.target_email.toLowerCase()) {
+      return res.status(403).json({
+        error: `Este convite foi gerado exclusivamente para o e-mail: ${invite.target_email}. Você está autenticado como ${user.email}.`
+      });
+    }
+
     const existing = db.prepare(`
       SELECT id FROM organization_members
       WHERE organization_id = ? AND user_id = ?
@@ -251,8 +375,13 @@ router.post('/invites/:code/accept', (req, res) => {
   }
 
   const { name, username, email, password } = req.body;
-  if (!name || !username || !email || !password) {
-    return res.status(400).json({ error: 'Todos os campos de cadastro são obrigatórios' });
+  if (!name || !username || !password) {
+    return res.status(400).json({ error: 'Nome, usuário e senha são obrigatórios' });
+  }
+
+  const cleanEmail = (invite.target_email || email || '').toLowerCase().trim();
+  if (!cleanEmail) {
+    return res.status(400).json({ error: 'E-mail é obrigatório' });
   }
 
   if (password.length < 6) {
@@ -260,7 +389,6 @@ router.post('/invites/:code/accept', (req, res) => {
   }
 
   const cleanUsername = username.toLowerCase().trim();
-  const cleanEmail = email.toLowerCase().trim();
 
   const userConflict = db.prepare('SELECT id FROM users WHERE username = ? OR email = ?').get(cleanUsername, cleanEmail);
   if (userConflict) {
