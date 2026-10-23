@@ -453,7 +453,7 @@ export default function Team() {
                   <button
                     type="submit"
                     className="btn btn-primary"
-                    disabled={generatingInvite}
+                    disabled={generatingInvite || !inviteEmail.trim()}
                   >
                     {generatingInvite ? <><Loader2 size={16} className="spin" /> Gerando...</> : 'Gerar Link de Convite'}
                   </button>

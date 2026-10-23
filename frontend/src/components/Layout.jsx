@@ -421,7 +421,7 @@ function Layout() {
                 <button
                   type="submit"
                   className="btn btn-primary"
-                  disabled={creatingOrg}
+                  disabled={creatingOrg || !newOrgName.trim()}
                 >
                   {creatingOrg ? <Loader2 size={16} className="spin" /> : <Plus size={16} />}
                   <span>Criar Organização</span>

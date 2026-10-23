@@ -53,6 +53,20 @@ export default function Profile() {
     }
   }
 
+  const isProfileDirty = Boolean(user) && (
+    (name.trim() !== (user.name || '') || email.trim().toLowerCase() !== (user.email || '').toLowerCase()) &&
+    name.trim().length > 0 &&
+    email.trim().length > 0
+  );
+
+  const isPasswordValid = Boolean(
+    currentPassword &&
+    newPassword &&
+    confirmPassword &&
+    newPassword.length >= 6 &&
+    newPassword === confirmPassword
+  );
+
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     if (!name.trim() || !email.trim()) {
@@ -207,7 +221,7 @@ export default function Profile() {
               </div>
             )}
 
-            <button type="submit" className="btn btn-primary" disabled={savingProfile} style={{ width: '100%' }}>
+            <button type="submit" className="btn btn-primary" disabled={savingProfile || !isProfileDirty} style={{ width: '100%' }}>
               {savingProfile ? <Loader2 size={16} className="spin" /> : <Save size={16} />}
               <span>Salvar Alterações</span>
             </button>
@@ -260,7 +274,7 @@ export default function Profile() {
               />
             </div>
 
-            <button type="submit" className="btn btn-secondary" disabled={savingPassword} style={{ width: '100%', marginTop: '8px' }}>
+            <button type="submit" className="btn btn-secondary" disabled={savingPassword || !isPasswordValid} style={{ width: '100%', marginTop: '8px' }}>
               {savingPassword ? <Loader2 size={16} className="spin" /> : <Lock size={16} />}
               <span>Atualizar Senha</span>
             </button>

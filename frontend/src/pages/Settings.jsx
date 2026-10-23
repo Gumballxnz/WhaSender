@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Settings as SettingsIcon, Clock, Zap, Shield, Save, Loader2,
-  RefreshCw, CheckCircle2, AlertTriangle, ShieldCheck, QrCode, Sparkles
+  Settings as SettingsIcon, Clock, Zap, Save, Loader2,
+  RefreshCw, CheckCircle2, AlertTriangle, QrCode
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
@@ -29,6 +29,7 @@ function Settings() {
   });
 
   const [loading, setLoading] = useState(true);
+  const [initialSettings, setInitialSettings] = useState(null);
   const [saving, setSaving] = useState(false);
   const [refreshingBot, setRefreshingBot] = useState(false);
   const [totalContacts, setTotalContacts] = useState(0);
@@ -45,7 +46,9 @@ function Settings() {
         api.get('/contacts').catch(() => ({ data: [] })),
         api.get('/bot/status').catch(() => ({ data: { status: 'disconnected' } })),
       ]);
-      setSettings((prev) => ({ ...prev, ...sRes.data }));
+      const loaded = { ...settings, ...sRes.data };
+      setSettings(loaded);
+      setInitialSettings(loaded);
       setTotalContacts(Array.isArray(cRes.data) ? cRes.data.filter((c) => c.active).length : 0);
       setBotStatus(bRes.data?.status || 'disconnected');
     } catch {
@@ -60,6 +63,7 @@ function Settings() {
     setSaving(true);
     try {
       await api.put('/settings', settings);
+      setInitialSettings(settings);
       toast.success('Configurações salvas com sucesso!');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Erro ao salvar configurações');
@@ -83,6 +87,9 @@ function Settings() {
 
   const delaySeconds = Math.round(parseInt(settings.delay_ms || 30000, 10) / 1000);
   const scheduleEnabled = settings.schedule_enabled === 'true';
+  const isDirty = initialSettings !== null && Object.keys(settings).some(
+    (key) => String(settings[key] ?? '') !== String(initialSettings[key] ?? '')
+  );
 
   if (loading) {
     return (
@@ -140,7 +147,7 @@ function Settings() {
         <button
           className="btn btn-primary"
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || !isDirty}
           style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', fontSize: '14px' }}
         >
           {saving ? (
@@ -186,7 +193,7 @@ function Settings() {
                   color: 'var(--accent)',
                   fontFamily: 'var(--font-mono)'
                 }}>
-                  {formatDelay(parseInt(settings.delay_ms || 30000, 10))} ({delaySeconds}s)
+                  {formatDelay(parseInt(settings.delay_ms || 30000, 10))}
                 </span>
               </div>
               <input
@@ -353,79 +360,6 @@ function Settings() {
             )}
           </div>
         </div>
-
-        {/* Card 4: Segurança & Autenticação */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-          <div>
-            <div className="card-header" style={{ marginBottom: '20px' }}>
-              <div>
-                <span className="card-title">Segurança & Multi-Tenant</span>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
-                  Arquitetura de chaves e dados
-                </span>
-              </div>
-              <div className="card-icon green">
-                <ShieldCheck size={20} />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
-              <div style={{
-                padding: '12px 14px',
-                background: 'var(--bg-input)',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-default)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}>
-                <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>Chaves Criptográficas JWT</span>
-                <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 600 }}>Automático no SQLite</span>
-              </div>
-
-              <div style={{
-                padding: '12px 14px',
-                background: 'var(--bg-input)',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-default)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}>
-                <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>Sessão Web Segura</span>
-                <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 600 }}>HttpOnly Cookie</span>
-              </div>
-
-              <div style={{
-                padding: '12px 14px',
-                background: 'var(--bg-input)',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-default)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}>
-                <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>Controle de Acesso</span>
-                <span style={{ fontSize: '11px', color: 'var(--info)', fontWeight: 600 }}>Owner / Admin / Member</span>
-              </div>
-            </div>
-          </div>
-
-          <div style={{
-            padding: '10px 14px',
-            background: 'rgba(37, 211, 102, 0.08)',
-            border: '1px solid rgba(37, 211, 102, 0.2)',
-            borderRadius: 'var(--radius-md)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '12px',
-            color: 'var(--text-primary)'
-          }}>
-            <Sparkles size={16} color="var(--accent)" style={{ flexShrink: 0 }} />
-            Zero credenciais hardcoded. O banco e a sessão estão isolados e persistidos no volume.
-          </div>
-        </div>
       </div>
 
       {/* Barra de Ação no Rodapé */}
@@ -447,7 +381,7 @@ function Settings() {
         <button
           className="btn btn-primary"
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || !isDirty}
           style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 24px', fontSize: '14px' }}
         >
           {saving ? (

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   CheckCircle2, XCircle, AlertTriangle, Upload, FileText, Play, Square,
-  Download, ArrowRight, RefreshCw, Loader2, Clock, Check, ShieldCheck, Zap
+  Download, ArrowRight, RefreshCw, Loader2, Clock, Check, Zap
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
@@ -442,11 +442,6 @@ export default function Validator() {
                 );
               })}
             </div>
-
-            <div style={{ padding: '12px', borderRadius: '8px', background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              <ShieldCheck size={15} color="var(--info)" style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-              O Baileys consulta a API interna de contatos do WhatsApp agrupando requisições em lotes. O modo <strong>Seguro</strong> reduz significativamente riscos de bloqueio em listas grandes.
-            </div>
           </div>
 
           <div style={{ marginTop: '20px' }}>
@@ -454,7 +449,7 @@ export default function Validator() {
               className="btn btn-primary"
               style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '14px' }}
               onClick={handleStart}
-              disabled={loading || isRunning || !isConnected}
+              disabled={loading || isRunning || !isConnected || (sourceType === 'file' ? !selectedFile : rawPhoneCount === 0)}
             >
               {loading ? (
                 <><Loader2 size={16} className="spin" /> Iniciando...</>
