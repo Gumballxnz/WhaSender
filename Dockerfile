@@ -37,8 +37,6 @@ COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 RUN mkdir -p /app/data/arquivos /app/data/sessions
 
-VOLUME /app/data
-
 EXPOSE 3002
 
 CMD ["node", "bin/whasender.js"]
