@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Phone, Hash, Shield, FileSpreadsheet, Download, Loader2,
   Cpu, History, BarChart3, Zap, AlertTriangle, CheckCircle2, XCircle,
-  Archive, Trash2
+  Archive, Trash2, Clock
 } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -467,8 +467,9 @@ export default function Generator() {
                 <div className="progress-bar-fill" style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }} />
               </div>
               {getEta() && (
-                <div style={{ fontSize: '11px', color: 'var(--accent)', marginTop: '6px', fontWeight: 500 }}>
-                  ⏱️ {getEta()}
+                <div style={{ fontSize: '11px', color: 'var(--accent)', marginTop: '6px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Clock size={13} />
+                  <span>{getEta()}</span>
                 </div>
               )}
             </div>
@@ -514,65 +515,32 @@ export default function Generator() {
               </div>
             </div>
           )}
-          <button
-            onClick={handleGenerate}
-            disabled={generating || params.total === 0}
-            className="btn btn-primary"
-            style={{ width: '100%', justifyContent: 'center', padding: '13px', fontSize: '15px' }}
-          >
-            {generating ? (
-              <><Loader2 size={18} className="spin" /> Gerando Leads...</>
-            ) : (
-              <><Zap size={18} /> Gerar Leads</>
-            )}
-          </button>
-        </div>
-
-        {/* Painel lateral — Como funciona */}
-        <div className="card" style={{ background: 'var(--bg-card)' }}>
-          <div className="card-header">
-            <span className="card-title">Como funciona</span>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              onClick={handleGenerate}
+              disabled={generating || params.total === 0}
+              className="btn btn-primary"
+              style={{ flex: 1, justifyContent: 'center', padding: '13px', fontSize: '15px' }}
+            >
+              {generating ? (
+                <><Loader2 size={18} className="spin" /> Gerando Leads...</>
+              ) : (
+                <><Zap size={18} /> Gerar Leads</>
+              )}
+            </button>
+            <button
+              onClick={handleDownloadZip}
+              disabled={downloadingZip || generating}
+              className="btn btn-secondary"
+              style={{ justifyContent: 'center', padding: '13px', fontSize: '14px' }}
+            >
+              {downloadingZip ? (
+                <><Loader2 size={16} className="spin" /> Compactando...</>
+              ) : (
+                <><Archive size={16} /> Baixar Todos (ZIP)</>
+              )}
+            </button>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
-            {[
-              '✓ Números realistas de Moçambique (9 dígitos)',
-              '✓ Validação contra sequências fakes',
-              '✓ Nunca repete números antigos do banco',
-              '✓ Cada parte vira um arquivo Excel (.xlsx)',
-              '✓ Tudo compactado em um único ZIP',
-              '✓ Disparo direto via WhaSender',
-            ].map((text, i) => (
-              <div key={i} style={{
-                fontSize: '14px', color: 'var(--text-secondary)',
-                padding: '8px 12px', borderRadius: '8px',
-                background: 'rgba(255,255,255,0.02)',
-              }}>
-                {text}
-              </div>
-            ))}
-          </div>
-
-          <div style={{
-            marginTop: '20px', padding: '14px', borderRadius: '10px',
-            background: 'rgba(37, 211, 102, 0.05)', border: '1px solid var(--border-default)',
-          }}>
-            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              Cada parte: até 50.000 números. Várias partes para volumes maiores.
-              Todos os números ficam salvos permanentemente no banco de dados para garantir <strong style={{ color: 'var(--accent)' }}>0% duplicatas</strong> entre todas as gerações.
-            </p>
-          </div>
-          <button
-            onClick={handleDownloadZip}
-            disabled={downloadingZip || generating}
-            className="btn btn-secondary"
-            style={{ width: '100%', justifyContent: 'center', padding: '12px', marginTop: '16px' }}
-          >
-            {downloadingZip ? (
-              <><Loader2 size={16} className="spin" /> Compactando...</>
-            ) : (
-              <><Archive size={16} /> Baixar Todos (ZIP)</>
-            )}
-          </button>
         </div>
       </div>
       <div className="table-container">

@@ -199,7 +199,8 @@ function Invite() {
             {inviteData?.targetEmail && user?.email && inviteData.targetEmail.toLowerCase() !== user.email.toLowerCase() ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: 'var(--radius-md)', fontSize: '13px', color: 'var(--text-primary)', lineHeight: 1.4 }}>
-                  ⚠️ Você está conectado como <strong>{user?.email}</strong>, mas este convite foi enviado exclusivamente para <strong>{inviteData.targetEmail}</strong>.
+                  <AlertCircle size={15} style={{ display: 'inline', verticalAlign: '-2px', marginRight: '6px' }} color="var(--danger)" />
+                  Você está conectado como <strong>{user?.email}</strong>, mas este convite foi enviado exclusivamente para <strong>{inviteData.targetEmail}</strong>.
                 </div>
                 <button
                   type="button"

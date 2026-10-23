@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, Play, Loader2, Users, Clock, FileSpreadsheet } from 'lucide-react';
+import { Send, Play, Loader2, Users, Clock, FileSpreadsheet, Info, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 
@@ -101,8 +101,9 @@ function Dispatch() {
               <div className="input-group">
                 <label>Limite Máximo de Pausas (0 = infinito)</label>
                 <input type="number" className="input input-mono" value={maxPauses} onChange={e => setMaxPauses(Math.max(0, parseInt(e.target.value) || 0))} min={0} />
-                <div style={{fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px'}}>
-                  💡 Com {preview.length} contatos a enviar, o bot fará <strong>{actualPauses} pausa{actualPauses !== 1 ? 's' : ''}</strong> reais.
+                <div style={{fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px'}}>
+                  <Info size={13} color="var(--accent)" />
+                  <span>Com {preview.length} contatos a enviar, o bot fará <strong>{actualPauses} pausa{actualPauses !== 1 ? 's' : ''}</strong> reais.</span>
                 </div>
               </div>
             </>
@@ -124,8 +125,9 @@ function Dispatch() {
             {dispatching ? <><Loader2 size={20} style={{animation:'spin 1s linear infinite'}} /> Disparando...</> : <><Play size={20} /> Iniciar Disparo</>}
           </button>
           {botStatus !== 'connected' && (
-            <div style={{ color: 'var(--danger)', fontSize: '13px', textAlign: 'center', marginTop: '10px' }}>
-              ⚠️ O WhatsApp precisa estar conectado para iniciar disparos.
+            <div style={{ color: 'var(--danger)', fontSize: '13px', textAlign: 'center', marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              <AlertTriangle size={15} />
+              <span>O WhatsApp precisa estar conectado para iniciar disparos.</span>
             </div>
           )}
         </div>

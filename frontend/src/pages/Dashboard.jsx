@@ -196,7 +196,7 @@ function Dashboard() {
   const handlePause = async () => {
     try {
       await api.post('/dispatch/stop');
-      toast('⏸️ Disparo pausado');
+      toast('Disparo pausado');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Erro ao pausar');
     }
@@ -207,7 +207,7 @@ function Dashboard() {
       await api.post('/dispatch/cancel');
       setProgress(null);
       setStoppedSession(null);
-      toast('❌ Disparo cancelado');
+      toast('Disparo cancelado');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Erro ao cancelar');
     }
@@ -216,7 +216,7 @@ function Dashboard() {
   const handleResume = async (sessionId) => {
     try {
       const { data } = await api.post('/dispatch/resume', { sessionId });
-      toast.success(`▶️ Retomando do contato ${data.startIndex + 1}`);
+      toast.success(`Retomando do contato ${data.startIndex + 1}`);
       setStoppedSession(null);
     } catch (err) {
       toast.error(err.response?.data?.error || 'Erro ao retomar');

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileText, Trash2, CheckCircle2, Loader2, Info, AlertTriangle, HardDrive, Download, Archive } from 'lucide-react';
+import { Upload, FileText, Trash2, CheckCircle2, Loader2, Info, AlertTriangle, HardDrive, Download, Archive, FolderOpen } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 
@@ -188,7 +188,9 @@ export default function Files() {
             }}
           >
             <input {...getInputProps()} />
-            <div style={{ fontSize: '40px', marginBottom: '15px' }}>📂</div>
+            <div style={{ marginBottom: '15px', display: 'flex', justifyContent: 'center' }}>
+              <FolderOpen size={42} color="var(--accent)" />
+            </div>
             {isDragActive ? (
               <p style={{ color: 'var(--accent)', fontWeight: 600 }}>Solte os arquivos agora...</p>
             ) : (

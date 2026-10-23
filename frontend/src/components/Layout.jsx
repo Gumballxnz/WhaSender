@@ -102,7 +102,7 @@ function Layout() {
         setProgress({ sent: msg.data.sentCount, total: msg.data.total, status: 'SENDING', delayMs: msg.data.delayMs });
         break;
       case 'DISPATCH_AUTO_STOPPED':
-        toast.error('⚠️ Bot desconectou — disparo pausado automaticamente');
+        toast.error('Bot desconectou — disparo pausado automaticamente');
         break;
       case 'VALIDATION_STARTED':
         setValidationProgress({ ...msg.data, status: 'RUNNING', checked: 0, validCount: 0, invalidCount: 0 });

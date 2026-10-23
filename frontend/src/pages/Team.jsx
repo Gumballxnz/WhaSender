@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Users, UserPlus, Shield, ShieldCheck, Trash2, Copy, Check,
-  Clock, X, Loader2, Building2, Crown, AlertTriangle
+  Clock, X, Loader2, Building2, Crown, AlertTriangle, CheckCircle2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
@@ -371,7 +371,8 @@ export default function Team() {
             {generatedLink ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div style={{ padding: '12px', background: 'rgba(37, 211, 102, 0.1)', border: '1px solid rgba(37, 211, 102, 0.3)', borderRadius: '8px', fontSize: '13px', color: 'var(--text-primary)' }}>
-                  ✅ Convite criado com sucesso! Compartilhe o link abaixo com o novo membro:
+                  <CheckCircle2 size={15} style={{ display: 'inline', verticalAlign: '-2px', marginRight: '6px' }} color="var(--accent)" />
+                  Convite criado com sucesso! Compartilhe o link abaixo com o novo membro:
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <input
