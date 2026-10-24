@@ -51,11 +51,12 @@ async function sendEmail({ to, subject, html, text, configOverride }) {
     if (!config.resend_api_key) {
       throw new Error('Chave de API do Resend não configurada');
     }
+    if (!config.mail_from_address) {
+      throw new Error('E-mail do remetente é obrigatório');
+    }
 
     const recipients = Array.isArray(to) ? to : [to];
-    const fromAddress = config.mail_from_address && config.mail_from_address !== 'noreply@whasender.site'
-      ? config.mail_from_address.trim()
-      : 'onboarding@resend.dev';
+    const fromAddress = config.mail_from_address.trim();
 
     const resendFrom = config.mail_from_name
       ? `"${config.mail_from_name.trim()}" <${fromAddress}>`

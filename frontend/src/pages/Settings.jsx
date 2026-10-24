@@ -643,11 +643,6 @@ export default function Settings() {
                   required
                   autoFocus
                 />
-                {emailConfig.email_provider === 'resend' && (
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px', display: 'block', lineHeight: 1.4 }}>
-                    Em contas de teste do Resend, a entrega é permitida apenas para o e-mail dono da conta Resend. Para enviar a qualquer e-mail, adicione seu domínio em resend.com/domains.
-                  </span>
-                )}
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                 <button
