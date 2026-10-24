@@ -222,7 +222,7 @@ export default function Generator() {
       </div>
 
       {/* ═══ MÉTRICAS ═══ */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+      <div className="generator-metrics-grid">
         {/* Total Gerado */}
         <div className="card" style={{ padding: '20px' }}>
           <div className="card-header" style={{ marginBottom: '12px' }}>

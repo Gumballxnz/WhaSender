@@ -301,13 +301,15 @@ export default function Profile() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '12px',
                   padding: '16px',
                   background: isActive ? 'var(--bg-card-hover)' : 'var(--bg-input)',
                   border: isActive ? '1px solid var(--accent)' : '1px solid var(--border-default)',
                   borderRadius: 'var(--radius-md)',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
                   <div
                     style={{
                       width: '38px',

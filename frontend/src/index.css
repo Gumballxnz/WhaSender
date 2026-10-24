@@ -66,6 +66,14 @@ html, body {
   height: 100%;
 }
 
+.mobile-topbar {
+  display: none;
+}
+
+.mobile-drawer-backdrop {
+  display: none;
+}
+
 .app-layout {
   display: flex;
   height: 100vh;
@@ -434,6 +442,13 @@ html, body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
   gap: 20px;
+  margin-bottom: 24px;
+}
+
+.generator-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
   margin-bottom: 24px;
 }
 
@@ -1043,19 +1058,219 @@ tbody tr:hover {
 }
 
 @media (max-width: 768px) {
+  .mobile-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    padding: 0 16px;
+    background: var(--bg-sidebar);
+    border-bottom: 1px solid var(--border-default);
+    position: sticky;
+    top: 0;
+    z-index: 900;
+    flex-shrink: 0;
+    width: 100%;
+  }
+
+  .mobile-menu-toggle {
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    padding: 7px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+  }
+
+  .mobile-menu-toggle:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-hover);
+  }
+
+  .mobile-drawer-backdrop {
+    display: block;
+    position: fixed;
+    top: 56px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(2px);
+    z-index: 998;
+    animation: fadeIn 0.2s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
   .app-layout {
     flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
   }
+
   .sidebar {
-    width: 100%;
-    min-width: 100%;
-    height: auto;
+    position: fixed;
+    top: 56px;
+    left: 0;
+    bottom: 0;
+    width: 280px;
+    max-width: 85vw;
+    height: calc(100vh - 56px);
+    height: calc(100dvh - 56px);
     max-height: none;
-    border-right: none;
-    border-bottom: 1px solid var(--border-default);
+    z-index: 999;
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: none;
+    border-right: 1px solid var(--border-default);
+    border-bottom: none;
+    background: var(--bg-sidebar);
+    overflow-y: auto;
   }
+
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.6);
+  }
+
+  .main-content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 16px 14px;
+    width: 100%;
+  }
+
+  .card-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px;
+  }
+
+  .resend-grid-2 {
+    grid-template-columns: 1fr !important;
+    gap: 14px;
+  }
+
+  .card,
+  .resend-card {
+    padding: 16px;
+    border-radius: var(--radius-md);
+  }
+
+  .card-header,
+  .resend-card-header {
+    margin-bottom: 12px;
+  }
+
   .resend-header {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .resend-header > div:last-child {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .resend-header .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .page-header {
+    margin-bottom: 16px;
+  }
+
+  .page-header h2 {
+    font-size: 20px;
+  }
+
+  .resend-title {
+    font-size: 20px;
+  }
+
+  .resend-hero-card {
+    padding: 16px;
+  }
+
+  .resend-hero-header {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .resend-stats-group {
+    gap: 16px;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .resend-stat-value {
+    font-size: 24px;
+  }
+
+  .resend-chart-wrapper {
+    height: 180px;
+  }
+
+  .resend-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .resend-search-box {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .resend-select {
+    width: 100%;
+  }
+
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  .table-container table {
+    min-width: 520px;
+  }
+
+  .modal,
+  .modal-card {
+    width: calc(100% - 24px);
+    max-width: 100%;
+    padding: 18px 16px;
+    margin: 12px;
+  }
+
+  .dropzone,
+  .dropzone-area {
+    padding: 28px 14px;
+  }
+
+  .generator-metrics-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 440px) {
+  .generator-metrics-grid {
+    grid-template-columns: 1fr;
   }
 }

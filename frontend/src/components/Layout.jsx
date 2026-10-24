@@ -1,8 +1,8 @@
-import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import {
   BarChart3, Send, Users, Settings, LogOut, Folder,
   Cpu, CheckCircle2, Contact, Building2, UserCircle, AlertTriangle, X,
-  ChevronDown, Plus, Check, Loader2
+  ChevronDown, Plus, Check, Loader2, Menu
 } from 'lucide-react';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
@@ -40,12 +40,18 @@ const navGroups = [
 
 function Layout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, currentOrganization, organizations, setAuth, setCurrentOrganization, clearToken } = useAuthStore();
   const resetSocketStore = useSocketStore((s) => s.reset);
   const botStatus = useSocketStore((s) => s.botStatus);
 
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
 
   const [showOrgDropdown, setShowOrgDropdown] = useState(false);
   const [showCreateOrgModal, setShowCreateOrgModal] = useState(false);
@@ -195,7 +201,42 @@ function Layout() {
 
   return (
     <div className="app-layout">
-      <aside className="sidebar">
+      {/* Barra de Topo no Mobile */}
+      <header className="mobile-topbar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, overflow: 'hidden' }}>
+          <div className="sidebar-org-avatar" style={{ width: '28px', height: '28px', fontSize: '13px' }}>
+            {(currentOrganization?.name || 'W').charAt(0).toUpperCase()}
+          </div>
+          <div style={{ minWidth: 0, overflow: 'hidden' }}>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {currentOrganization?.name || 'WhaSender'}
+            </div>
+            <div style={{ fontSize: '10px', color: botStatus === 'connected' ? 'var(--accent)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span className={`status-dot ${botStatus || 'disconnected'}`} style={{ width: '6px', height: '6px' }} />
+              <span>{botStatus === 'connected' ? 'Online' : 'Offline'}</span>
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="mobile-menu-toggle"
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          aria-label="Menu"
+        >
+          {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+      </header>
+
+      {/* Backdrop no Mobile */}
+      {isMobileMenuOpen && (
+        <div
+          className="mobile-drawer-backdrop"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      <aside className={`sidebar ${isMobileMenuOpen ? 'open' : ''}`}>
         <div style={{ padding: '14px 12px 6px', position: 'relative' }} ref={orgDropdownRef}>
           <button
             type="button"
@@ -316,6 +357,7 @@ function Layout() {
                 <NavLink
                   key={item.to}
                   to={item.to}
+                  onClick={() => setIsMobileMenuOpen(false)}
                   className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
                 >
                   <item.icon />
@@ -346,6 +388,7 @@ function Layout() {
           {user && (
             <Link
               to="/profile"
+              onClick={() => setIsMobileMenuOpen(false)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
