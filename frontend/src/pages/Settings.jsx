@@ -93,13 +93,34 @@ export default function Settings() {
         api.put('/settings', settings),
         api.put('/settings/email', emailConfig),
       ]);
+      const emailRes = await api.get('/settings/email').catch(() => ({ data: {} }));
+      const loadedEmail = { ...emailConfig, ...emailRes.data, resend_api_key: '', smtp_pass: '' };
+      setSettings(settings);
       setInitialSettings(settings);
-      setInitialEmailConfig(emailConfig);
-      toast.success('Configurações salvas com sucesso');
+      setEmailConfig(loadedEmail);
+      setInitialEmailConfig(loadedEmail);
+      toast.success('Todas as configurações salvas com sucesso');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Erro ao salvar configurações');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveEmail = async (e) => {
+    if (e) e.preventDefault();
+    setSavingEmail(true);
+    try {
+      await api.put('/settings/email', emailConfig);
+      const emailRes = await api.get('/settings/email').catch(() => ({ data: {} }));
+      const loadedEmail = { ...emailConfig, ...emailRes.data, resend_api_key: '', smtp_pass: '' };
+      setEmailConfig(loadedEmail);
+      setInitialEmailConfig(loadedEmail);
+      toast.success('Configurações de e-mail salvas com sucesso');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Erro ao salvar configurações de e-mail');
+    } finally {
+      setSavingEmail(false);
     }
   };
 
@@ -354,16 +375,34 @@ export default function Settings() {
           {emailConfig.email_provider === 'resend' && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
               <div className="input-group">
-                <label>Resend API Key</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={{ margin: 0 }}>Resend API Key</label>
+                  {emailConfig.has_resend_key && (
+                    <span style={{
+                      fontSize: '11px',
+                      color: 'var(--accent)',
+                      background: 'rgba(37, 211, 102, 0.1)',
+                      border: '1px solid rgba(37, 211, 102, 0.25)',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontFamily: 'var(--font-mono)'
+                    }}>
+                      <CheckCircle2 size={12} /> Chave salva: {emailConfig.resend_api_key_masked}
+                    </span>
+                  )}
+                </div>
                 <input
                   type="password"
-                  className="input"
-                  placeholder={emailConfig.resend_api_key_masked || 're_123456789...'}
+                  className="input input-mono"
+                  placeholder={emailConfig.has_resend_key ? 'Substituir chave salva...' : 're_123456789...'}
                   value={emailConfig.resend_api_key || ''}
                   onChange={(e) => setEmailConfig({ ...emailConfig, resend_api_key: e.target.value })}
                 />
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  {emailConfig.has_resend_key ? 'Chave configurada. Deixe em branco para manter.' : 'Obtenha em resend.com/api-keys'}
+                  {emailConfig.has_resend_key ? 'Chave salva e ativa. Digite um novo valor se desejar alterar.' : 'Obtenha em resend.com/api-keys'}
                 </span>
               </div>
 
@@ -427,11 +466,28 @@ export default function Settings() {
               </div>
 
               <div className="input-group">
-                <label>Senha</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={{ margin: 0 }}>Senha</label>
+                  {emailConfig.has_smtp_pass && (
+                    <span style={{
+                      fontSize: '11px',
+                      color: 'var(--accent)',
+                      background: 'rgba(37, 211, 102, 0.1)',
+                      border: '1px solid rgba(37, 211, 102, 0.25)',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      <CheckCircle2 size={12} /> Senha salva
+                    </span>
+                  )}
+                </div>
                 <input
                   type="password"
                   className="input"
-                  placeholder={emailConfig.has_smtp_pass ? '••••••••' : 'Sua senha SMTP'}
+                  placeholder={emailConfig.has_smtp_pass ? 'Substituir senha salva...' : 'Sua senha SMTP'}
                   value={emailConfig.smtp_pass || ''}
                   onChange={(e) => setEmailConfig({ ...emailConfig, smtp_pass: e.target.value })}
                 />
@@ -461,10 +517,57 @@ export default function Settings() {
             </div>
           )}
 
+          {emailConfig.email_provider !== 'disabled' && (
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: '20px',
+              paddingTop: '16px',
+              borderTop: '1px solid var(--border-default)',
+              flexWrap: 'wrap',
+              gap: '12px'
+            }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                {isEmailDirty ? 'Existem alterações de e-mail não salvas.' : 'Configurações de e-mail salvas e ativas.'}
+              </span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setShowTestModal(true)}
+                  disabled={savingEmail}
+                >
+                  <Send size={13} /> Testar E-mail
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={handleSaveEmail}
+                  disabled={savingEmail || !isEmailDirty}
+                >
+                  {savingEmail ? <><Loader2 size={13} className="spin" /> Salvando...</> : <><Save size={13} /> Salvar Configurações de E-mail</>}
+                </button>
+              </div>
+            </div>
+          )}
+
           {emailConfig.email_provider === 'disabled' && (
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
-              O envio de convites por e-mail está desativado. Os convites da equipe ainda podem ser compartilhados manualmente via link direto.
-            </p>
+            <div style={{ marginTop: '14px' }}>
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0, marginBottom: '14px' }}>
+                O envio de convites por e-mail está desativado. Os convites da equipe ainda podem ser compartilhados manualmente via link direto.
+              </p>
+              {isEmailDirty && (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={handleSaveEmail}
+                  disabled={savingEmail}
+                >
+                  {savingEmail ? <><Loader2 size={13} className="spin" /> Salvando...</> : <><Save size={13} /> Confirmar Desativação</>}
+                </button>
+              )}
+            </div>
           )}
         </div>
 
