@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
-  Users, UserPlus, Shield, ShieldCheck, Trash2, Copy, Check,
-  Clock, X, Loader2, Building2, Crown, AlertTriangle, CheckCircle2
+  Users, UserPlus, Shield, Trash2, Copy, Check,
+  Clock, X, Loader2, Building2, Crown, Search, Mail, Send
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
@@ -14,12 +14,16 @@ export default function Team() {
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [loadingInvites, setLoadingInvites] = useState(true);
 
+  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState('ALL');
+
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('member');
   const [inviteDays, setInviteDays] = useState(7);
   const [generatingInvite, setGeneratingInvite] = useState(false);
   const [generatedLink, setGeneratedLink] = useState('');
+  const [emailDispatched, setEmailDispatched] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const [confirmRemoveMember, setConfirmRemoveMember] = useState(null);
@@ -97,9 +101,16 @@ export default function Team() {
         role: inviteRole,
         expiresInDays: inviteDays,
       });
+
       const url = `${window.location.origin}/invite?code=${data.code}`;
       setGeneratedLink(url);
-      toast.success('Convite gerado!');
+      setEmailDispatched(data.emailSent || false);
+
+      if (data.emailSent) {
+        toast.success(`Convite gerado e enviado para ${inviteEmail.trim()}`);
+      } else {
+        toast.success('Convite gerado. Compartilhe o link de acesso.');
+      }
       loadInvites();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Erro ao gerar convite');
@@ -121,259 +132,318 @@ export default function Team() {
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
-    toast.success('Link copiado para a área de transferência!');
+    toast.success('Link copiado para a área de transferência');
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const filteredMembers = useMemo(() => {
+    return members.filter((m) => {
+      if (roleFilter !== 'ALL' && m.role !== roleFilter) return false;
+      if (searchTerm.trim()) {
+        const query = searchTerm.toLowerCase();
+        const nameMatch = (m.name || '').toLowerCase().includes(query);
+        const emailMatch = (m.email || '').toLowerCase().includes(query);
+        const userMatch = (m.username || '').toLowerCase().includes(query);
+        if (!nameMatch && !emailMatch && !userMatch) return false;
+      }
+      return true;
+    });
+  }, [members, roleFilter, searchTerm]);
+
   return (
-    <div className="page-container" style={{ padding: '28px', maxWidth: '1200px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+    <div className="main-container">
+      {/* Resend Header */}
+      <div className="resend-header">
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Users size={26} color="var(--accent)" />
-            Equipe & Membros
-          </h1>
-          <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Gerencie os colaboradores da organização <strong style={{ color: 'var(--text-primary)' }}>{currentOrganization?.name}</strong>
+          <h1 className="resend-title">Equipe</h1>
+          <p className="resend-subtitle">
+            Gerenciamento de membros, níveis de acesso e convites da organização
           </p>
         </div>
 
         {isOwnerOrAdmin && (
           <button
+            type="button"
             className="btn btn-primary"
             onClick={() => {
               setGeneratedLink('');
+              setEmailDispatched(false);
               setShowInviteModal(true);
             }}
-            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+            style={{ padding: '8px 16px', fontWeight: 600 }}
           >
-            <UserPlus size={18} />
-            Convidar Membro
+            <UserPlus size={14} />
+            <span>Convidar Membro</span>
           </button>
         )}
       </div>
 
-      <div className="card" style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(37, 211, 102, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Building2 size={24} color="var(--accent)" />
+      {/* Resend Toolbar */}
+      <div className="resend-toolbar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div className="resend-search-box">
+            <Search size={14} color="var(--text-muted)" />
+            <input
+              type="text"
+              className="resend-search-input"
+              placeholder="Buscar colaborador por nome ou e-mail..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
-          <div>
-            <h3 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)' }}>{currentOrganization?.name}</h3>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Identificador: {currentOrganization?.slug}</span>
-          </div>
+
+          <select
+            className="resend-select"
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+          >
+            <option value="ALL">Todas as Funções</option>
+            <option value="owner">Proprietário</option>
+            <option value="admin">Administrador</option>
+            <option value="member">Membro</option>
+          </select>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span className={`badge-${currentOrganization?.role}`}>
-            Sua Função: {currentOrganization?.role === 'owner' ? 'Proprietário' : currentOrganization?.role === 'admin' ? 'Administrador' : 'Membro'}
-          </span>
-          <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-            {members.length} {members.length === 1 ? 'membro' : 'membros'}
-          </span>
+
+        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+          {filteredMembers.length} {filteredMembers.length === 1 ? 'membro ativo' : 'membros ativos'}
         </div>
       </div>
 
-      <div className="table-container" style={{ marginBottom: '32px' }}>
-        <div className="table-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ShieldCheck size={18} color="var(--accent)" /> Membros Ativos
-          </span>
-        </div>
-
+      {/* Tabela de Membros */}
+      <div className="resend-card" style={{ padding: 0, overflow: 'hidden', marginBottom: '32px' }}>
         {loadingMembers ? (
           <div style={{ padding: '24px' }}>
             {[1, 2, 3].map((n) => (
-              <div key={n} className="skeleton" style={{ height: '48px', marginBottom: '12px' }} />
+              <div key={n} className="skeleton" style={{ height: '44px', marginBottom: '10px' }} />
             ))}
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th style={{ textAlign: 'left', padding: '12px 16px' }}>Colaborador</th>
-                <th style={{ textAlign: 'left', padding: '12px 16px' }}>E-mail</th>
-                <th style={{ textAlign: 'center', padding: '12px 16px' }}>Função</th>
-                <th style={{ textAlign: 'left', padding: '12px 16px' }}>Ingressou em</th>
-                {isOwnerOrAdmin && <th style={{ textAlign: 'right', padding: '12px 16px' }}>Ações</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((m) => {
-                const isSelf = m.id === user?.id;
-                const isMemberOwner = m.role === 'owner';
-                const canModify = isOwner && !isMemberOwner && !isSelf;
-
-                return (
-                  <tr key={m.id} style={{ borderTop: '1px solid var(--border-default)' }}>
-                    <td style={{ padding: '14px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{
-                          width: '34px',
-                          height: '34px',
-                          borderRadius: '50%',
-                          background: isMemberOwner ? 'rgba(245, 158, 11, 0.2)' : 'var(--bg-input)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 700,
-                          fontSize: '13px',
-                          color: isMemberOwner ? 'var(--warning)' : 'var(--text-primary)'
-                        }}>
-                          {m.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            {m.name}
-                            {isMemberOwner && <Crown size={14} color="var(--warning)" />}
-                            {isSelf && <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>(você)</span>}
-                          </div>
-                          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>@{m.username}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ padding: '14px 16px', color: 'var(--text-secondary)', fontSize: '13px' }}>
-                      {m.email}
-                    </td>
-                    <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                      {canModify ? (
-                        <select
-                          className="input"
-                          value={m.role}
-                          onChange={(e) => handleRoleChange(m.id, e.target.value)}
-                          style={{ padding: '4px 8px', fontSize: '12px', width: 'auto', display: 'inline-block' }}
-                        >
-                          <option value="admin">Administrador</option>
-                          <option value="member">Membro</option>
-                        </select>
-                      ) : (
-                        <span className={`badge-${m.role}`}>
-                          {m.role === 'owner' ? 'Proprietário' : m.role === 'admin' ? 'Administrador' : 'Membro'}
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: '14px 16px', color: 'var(--text-secondary)', fontSize: '13px' }}>
-                      {m.joined_at?.substring(0, 10)}
-                    </td>
-                    {isOwnerOrAdmin && (
-                      <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                        {!isMemberOwner && !isSelf && (isOwner || (currentOrganization?.role === 'admin' && m.role === 'member')) && (
-                          <button
-                            className="btn btn-secondary"
-                            onClick={() => setConfirmRemoveMember(m)}
-                            style={{ padding: '6px 10px', color: 'var(--error)' }}
-                            title="Remover membro"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        )}
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {isOwnerOrAdmin && (
-        <div className="table-container">
-          <div className="table-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Clock size={18} color="var(--info)" /> Convites Pendentes
-            </span>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              {invites.length} links ativos
-            </span>
-          </div>
-
-          {loadingInvites ? (
-            <div style={{ padding: '24px' }}>
-              {[1, 2].map((n) => (
-                <div key={n} className="skeleton" style={{ height: '40px', marginBottom: '10px' }} />
-              ))}
-            </div>
-          ) : invites.length === 0 ? (
-            <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
-              Nenhum convite pendente. Clique em "Convidar Membro" para criar um link de acesso.
-            </div>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
               <thead>
-                <tr>
-                  <th style={{ textAlign: 'left', padding: '12px 16px' }}>Destinatário</th>
-                  <th style={{ textAlign: 'left', padding: '12px 16px' }}>Código do Convite</th>
-                  <th style={{ textAlign: 'center', padding: '12px 16px' }}>Função Concedida</th>
-                  <th style={{ textAlign: 'left', padding: '12px 16px' }}>Criado Por</th>
-                  <th style={{ textAlign: 'left', padding: '12px 16px' }}>Expira Em</th>
-                  <th style={{ textAlign: 'right', padding: '12px 16px' }}>Ações</th>
+                <tr style={{ borderBottom: '1px solid var(--border-default)', background: 'rgba(255, 255, 255, 0.02)' }}>
+                  <th style={{ padding: '12px 18px', fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.6px' }}>Colaborador</th>
+                  <th style={{ padding: '12px 18px', fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.6px' }}>E-mail</th>
+                  <th style={{ padding: '12px 18px', fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.6px' }}>Função</th>
+                  <th style={{ padding: '12px 18px', fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.6px' }}>Ingressou</th>
+                  {isOwnerOrAdmin && (
+                    <th style={{ padding: '12px 18px', fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.6px', textAlign: 'right' }}>Ações</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
-                {invites.map((inv) => {
-                  const inviteUrl = `${window.location.origin}/invite?code=${inv.code}`;
+                {filteredMembers.map((m) => {
+                  const isSelf = m.id === user?.id;
+                  const isMemberOwner = m.role === 'owner';
+                  const canModify = isOwner && !isMemberOwner && !isSelf;
+
                   return (
-                    <tr key={inv.id} style={{ borderTop: '1px solid var(--border-default)' }}>
-                      <td style={{ padding: '12px 16px', color: 'var(--text-primary)', fontSize: '13px', fontWeight: 500 }}>
-                        {inv.target_email || <span style={{ color: 'var(--text-muted)' }}>Qualquer e-mail</span>}
+                    <tr
+                      key={m.id}
+                      style={{ borderBottom: '1px solid var(--border-default)', transition: 'background var(--transition-fast)' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <td style={{ padding: '14px 18px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            background: isMemberOwner ? 'rgba(37, 211, 102, 0.15)' : 'rgba(255, 255, 255, 0.06)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 600,
+                            fontSize: '12px',
+                            color: isMemberOwner ? 'var(--accent)' : 'var(--text-primary)'
+                          }}>
+                            {m.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              {m.name}
+                              {isMemberOwner && <Crown size={13} color="var(--accent)" />}
+                              {isSelf && <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>(você)</span>}
+                            </div>
+                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>@{m.username}</span>
+                          </div>
+                        </div>
                       </td>
-                      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                        {inv.code}
+                      <td style={{ padding: '14px 18px', color: 'var(--text-secondary)' }}>
+                        {m.email}
                       </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                        <span className={`badge-${inv.role}`}>
-                          {inv.role === 'admin' ? 'Administrador' : 'Membro'}
-                        </span>
+                      <td style={{ padding: '14px 18px' }}>
+                        {canModify ? (
+                          <select
+                            className="resend-select"
+                            value={m.role}
+                            onChange={(e) => handleRoleChange(m.id, e.target.value)}
+                            style={{ padding: '4px 8px', fontSize: '12px' }}
+                          >
+                            <option value="admin">Administrador</option>
+                            <option value="member">Membro</option>
+                          </select>
+                        ) : (
+                          <span className={`badge ${m.role === 'owner' ? 'badge-success' : m.role === 'admin' ? 'badge-info' : ''}`} style={{ fontSize: '11px' }}>
+                            {m.role === 'owner' ? 'Proprietário' : m.role === 'admin' ? 'Administrador' : 'Membro'}
+                          </span>
+                        )}
                       </td>
-                      <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '13px' }}>
-                        {inv.created_by_name}
+                      <td style={{ padding: '14px 18px', color: 'var(--text-muted)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>
+                        {m.joined_at?.substring(0, 10)}
                       </td>
-                      <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '13px' }}>
-                        {inv.expires_at || 'Nunca'}
-                      </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                        <button
-                          className="btn btn-secondary"
-                          onClick={() => copyToClipboard(inviteUrl)}
-                          style={{ padding: '6px 10px', marginRight: '8px' }}
-                          title="Copiar link do convite"
-                        >
-                          <Copy size={14} />
-                        </button>
-                        <button
-                          className="btn btn-secondary"
-                          onClick={() => handleRevokeInvite(inv.id)}
-                          style={{ padding: '6px 10px', color: 'var(--error)' }}
-                          title="Revogar convite"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
+                      {isOwnerOrAdmin && (
+                        <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                          {!isMemberOwner && !isSelf && (isOwner || (currentOrganization?.role === 'admin' && m.role === 'member')) && (
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => setConfirmRemoveMember(m)}
+                              style={{ color: 'var(--error)', padding: '4px 8px' }}
+                              title="Remover membro"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-          )}
+          </div>
+        )}
+      </div>
+
+      {/* Convites Pendentes */}
+      {isOwnerOrAdmin && (
+        <div>
+          <div className="resend-header" style={{ marginBottom: '16px' }}>
+            <div>
+              <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#ffffff' }}>Convites Pendentes</h2>
+              <p className="resend-subtitle">
+                Links e e-mails enviados aguardando confirmação de cadastro
+              </p>
+            </div>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              {invites.length} {invites.length === 1 ? 'convite ativo' : 'convites ativos'}
+            </span>
+          </div>
+
+          <div className="resend-card" style={{ padding: 0, overflow: 'hidden' }}>
+            {loadingInvites ? (
+              <div style={{ padding: '24px' }}>
+                {[1, 2].map((n) => (
+                  <div key={n} className="skeleton" style={{ height: '40px', marginBottom: '8px' }} />
+                ))}
+              </div>
+            ) : invites.length === 0 ? (
+              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                Nenhum convite pendente. Clique em "Convidar Membro" para enviar um novo convite.
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-default)', background: 'rgba(255, 255, 255, 0.02)' }}>
+                      <th style={{ padding: '12px 18px', fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.6px' }}>Destinatário</th>
+                      <th style={{ padding: '12px 18px', fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.6px' }}>Função Concedida</th>
+                      <th style={{ padding: '12px 18px', fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.6px' }}>Criado Por</th>
+                      <th style={{ padding: '12px 18px', fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.6px' }}>Expira Em</th>
+                      <th style={{ padding: '12px 18px', fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.6px', textAlign: 'right' }}>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invites.map((inv) => {
+                      const inviteUrl = `${window.location.origin}/invite?code=${inv.code}`;
+                      return (
+                        <tr
+                          key={inv.id}
+                          style={{ borderBottom: '1px solid var(--border-default)', transition: 'background var(--transition-fast)' }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                        >
+                          <td style={{ padding: '14px 18px', color: 'var(--text-primary)', fontWeight: 500 }}>
+                            {inv.target_email || 'Qualquer e-mail'}
+                          </td>
+                          <td style={{ padding: '14px 18px' }}>
+                            <span className="badge" style={{ fontSize: '11px' }}>
+                              {inv.role === 'admin' ? 'Administrador' : 'Membro'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '14px 18px', color: 'var(--text-secondary)' }}>
+                            {inv.created_by_name}
+                          </td>
+                          <td style={{ padding: '14px 18px', color: 'var(--text-muted)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>
+                            {inv.expires_at ? inv.expires_at.substring(0, 10) : 'Nunca'}
+                          </td>
+                          <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => copyToClipboard(inviteUrl)}
+                              style={{ marginRight: '8px' }}
+                              title="Copiar link do convite"
+                            >
+                              <Copy size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => handleRevokeInvite(inv.id)}
+                              style={{ color: 'var(--error)' }}
+                              title="Revogar convite"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
+      {/* Modal Convidar Membro */}
       {showInviteModal && (
         <div className="modal-overlay">
-          <div className="modal" style={{ maxWidth: '480px' }}>
+          <div className="modal" style={{ maxWidth: '460px' }}>
             <div className="modal-header">
-              <h3>Convidar Novo Membro</h3>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <UserPlus size={18} color="var(--accent)" /> Convidar Colaborador
+              </h3>
               <button className="modal-close" onClick={() => setShowInviteModal(false)}>
                 <X size={18} />
               </button>
             </div>
 
             {generatedLink ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ padding: '12px', background: 'rgba(37, 211, 102, 0.1)', border: '1px solid rgba(37, 211, 102, 0.3)', borderRadius: '8px', fontSize: '13px', color: 'var(--text-primary)' }}>
-                  <CheckCircle2 size={15} style={{ display: 'inline', verticalAlign: '-2px', marginRight: '6px' }} color="var(--accent)" />
-                  Convite criado com sucesso! Compartilhe o link abaixo com o novo membro:
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{
+                  padding: '14px',
+                  background: 'rgba(37, 211, 102, 0.1)',
+                  border: '1px solid rgba(37, 211, 102, 0.25)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: '13px',
+                  color: 'var(--text-primary)',
+                  lineHeight: 1.5
+                }}>
+                  {emailDispatched ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Check size={16} color="var(--accent)" />
+                      <span>E-mail de convite enviado com sucesso! Você também pode compartilhar o link direto abaixo:</span>
+                    </div>
+                  ) : (
+                    <span>Convite gerado. Compartilhe o link abaixo com o colaborador convidado:</span>
+                  )}
                 </div>
+
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <input
                     type="text"
@@ -383,36 +453,40 @@ export default function Team() {
                     style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}
                   />
                   <button
+                    type="button"
                     className="btn btn-primary"
                     onClick={() => copyToClipboard(generatedLink)}
                     style={{ whiteSpace: 'nowrap' }}
                   >
-                    {copied ? <><Check size={16} /> Copiado</> : <><Copy size={16} /> Copiar</>}
+                    {copied ? <><Check size={14} /> Copiado</> : <><Copy size={14} /> Copiar</>}
                   </button>
                 </div>
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => setShowInviteModal(false)}
-                  style={{ alignSelf: 'flex-end', marginTop: '10px' }}
-                >
-                  Fechar
-                </button>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowInviteModal(false)}
+                  >
+                    Concluir
+                  </button>
+                </div>
               </div>
             ) : (
               <form onSubmit={handleCreateInvite} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div className="input-group">
-                  <label>E-mail do Convidado</label>
+                  <label>E-mail do Colaborador</label>
                   <input
                     type="email"
                     className="input"
-                    placeholder="exemplo@empresa.com"
+                    placeholder="colaborador@empresa.com"
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
                     required
                     autoFocus
                   />
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                    O link será exclusivo para este e-mail. Apenas o portador deste endereço conseguirá aceitar.
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    Se um provedor de e-mail estiver configurado, o convite será despachado automaticamente por e-mail.
                   </span>
                 </div>
 
@@ -423,20 +497,20 @@ export default function Team() {
                     value={inviteRole}
                     onChange={(e) => setInviteRole(e.target.value)}
                   >
-                    <option value="member">Membro (Disparos, Validador, Arquivos)</option>
+                    <option value="member">Membro (Disparos, Validador e Arquivos)</option>
                     <option value="admin">Administrador (Gerencia equipe, convites e configs)</option>
                   </select>
                 </div>
 
                 <div className="input-group">
-                  <label>Validade do Convite</label>
+                  <label>Validade do Link</label>
                   <select
                     className="input"
                     value={inviteDays}
                     onChange={(e) => setInviteDays(Number(e.target.value))}
                   >
                     <option value={1}>1 Dia</option>
-                    <option value={7}>7 Dias (Padrão)</option>
+                    <option value={7}>7 Dias (Recomendado)</option>
                     <option value={30}>30 Dias</option>
                   </select>
                 </div>
@@ -455,7 +529,8 @@ export default function Team() {
                     className="btn btn-primary"
                     disabled={generatingInvite || !inviteEmail.trim()}
                   >
-                    {generatingInvite ? <><Loader2 size={16} className="spin" /> Gerando...</> : 'Gerar Link de Convite'}
+                    {generatingInvite ? <Loader2 size={14} className="spin" /> : <Send size={14} />}
+                    <span>Gerar & Enviar Convite</span>
                   </button>
                 </div>
               </form>
@@ -464,22 +539,22 @@ export default function Team() {
         </div>
       )}
 
+      {/* Modal Confirmar Remoção */}
       {confirmRemoveMember && (
         <div className="modal-overlay">
-          <div className="modal" style={{ maxWidth: '420px' }}>
+          <div className="modal" style={{ maxWidth: '400px' }}>
             <div className="modal-header">
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--error)' }}>
-                <AlertTriangle size={20} /> Confirmar Remoção
-              </h3>
+              <h3 style={{ color: 'var(--error)' }}>Remover Colaborador</h3>
               <button className="modal-close" onClick={() => setConfirmRemoveMember(null)}>
                 <X size={18} />
               </button>
             </div>
-            <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '20px' }}>
-              Deseja realmente remover <strong>{confirmRemoveMember.name}</strong> da organização? O usuário perderá acesso imediato a todos os recursos deste time.
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '20px' }}>
+              Tem certeza que deseja remover <strong>{confirmRemoveMember.name}</strong> da organização? O usuário perderá imediatamente o acesso aos dados deste ambiente.
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button
+                type="button"
                 className="btn btn-secondary"
                 onClick={() => setConfirmRemoveMember(null)}
                 disabled={removingMember}
@@ -487,22 +562,18 @@ export default function Team() {
                 Cancelar
               </button>
               <button
+                type="button"
                 className="btn btn-primary"
+                style={{ background: 'var(--error)', borderColor: 'var(--error)' }}
                 onClick={() => handleRemoveMember(confirmRemoveMember.id)}
                 disabled={removingMember}
-                style={{ background: 'var(--error)', borderColor: 'var(--error)' }}
               >
-                {removingMember ? <><Loader2 size={14} className="spin" /> Removendo...</> : 'Sim, Remover'}
+                {removingMember ? 'Removendo...' : 'Sim, Remover'}
               </button>
             </div>
           </div>
         </div>
       )}
-
-      <style>{`
-        .spin { animation: spin 1s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
     </div>
   );
 }

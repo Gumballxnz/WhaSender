@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const db = require('../db');
 const { issueAuthTokens } = require('../utils/token');
 const { normalizeEmail, isValidEmail, generateUniqueSlug } = require('../utils/validators');
+const { sendInvitationEmail } = require('../utils/mailer');
 const router = express.Router();
 
 function getOrgContext(req, res) {
@@ -222,7 +223,7 @@ router.get('/invites', (req, res) => {
   res.json({ invites });
 });
 
-router.post('/invites', (req, res) => {
+router.post('/invites', async (req, res) => {
   const ctx = getOrgContext(req, res);
   if (!ctx) return;
 
@@ -258,11 +259,35 @@ router.post('/invites', (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(ctx.id, code, cleanEmail, role, req.user.id, expiresAt);
 
+  const origin = req.headers.origin || (req.headers.host ? `${req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http'}://${req.headers.host}` : 'https://whasender.site');
+  const inviteUrl = `${origin}/invite?code=${code}`;
+
+  let emailSent = false;
+  let emailError = null;
+
+  try {
+    const inviter = db.prepare('SELECT name FROM users WHERE id = ?').get(req.user.id);
+    const emailResult = await sendInvitationEmail({
+      to: cleanEmail,
+      organizationName: ctx.name,
+      invitedByName: inviter?.name || req.user.name,
+      role,
+      inviteUrl,
+      expiresAt,
+    });
+    emailSent = emailResult?.success || false;
+  } catch (err) {
+    emailError = err.message;
+  }
+
   res.json({
     code,
     role,
     targetEmail: cleanEmail,
     expiresAt,
+    inviteUrl,
+    emailSent,
+    emailError,
   });
 });
 

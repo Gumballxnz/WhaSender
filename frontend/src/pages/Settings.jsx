@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Settings as SettingsIcon, Clock, Zap, Save, Loader2,
-  RefreshCw, CheckCircle2, AlertTriangle, QrCode
+  RefreshCw, CheckCircle2, QrCode, Mail, Send, Shield
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
@@ -15,7 +15,7 @@ function formatDelay(ms) {
   return rem > 0 ? `${min}m ${rem}s` : `${min}m`;
 }
 
-function Settings() {
+export default function Settings() {
   const navigate = useNavigate();
 
   const [settings, setSettings] = useState({
@@ -28,9 +28,29 @@ function Settings() {
     max_pauses: '0',
   });
 
+  const [emailConfig, setEmailConfig] = useState({
+    email_provider: 'disabled',
+    smtp_host: '',
+    smtp_port: '587',
+    smtp_secure: 'false',
+    smtp_user: '',
+    smtp_pass: '',
+    has_smtp_pass: false,
+    resend_api_key: '',
+    has_resend_key: false,
+    resend_api_key_masked: '',
+    mail_from_name: 'WhaSender',
+    mail_from_address: 'noreply@whasender.site',
+  });
+
   const [loading, setLoading] = useState(true);
   const [initialSettings, setInitialSettings] = useState(null);
+  const [initialEmailConfig, setInitialEmailConfig] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [testEmailAddress, setTestEmailAddress] = useState('');
+  const [showTestModal, setShowTestModal] = useState(false);
   const [refreshingBot, setRefreshingBot] = useState(false);
   const [totalContacts, setTotalContacts] = useState(0);
   const [botStatus, setBotStatus] = useState('disconnected');
@@ -41,14 +61,21 @@ function Settings() {
 
   async function loadData() {
     try {
-      const [sRes, cRes, bRes] = await Promise.all([
-        api.get('/settings'),
+      const [sRes, emailRes, cRes, bRes] = await Promise.all([
+        api.get('/settings').catch(() => ({ data: {} })),
+        api.get('/settings/email').catch(() => ({ data: {} })),
         api.get('/contacts').catch(() => ({ data: [] })),
         api.get('/bot/status').catch(() => ({ data: { status: 'disconnected' } })),
       ]);
-      const loaded = { ...settings, ...sRes.data };
-      setSettings(loaded);
-      setInitialSettings(loaded);
+
+      const loadedSettings = { ...settings, ...sRes.data };
+      setSettings(loadedSettings);
+      setInitialSettings(loadedSettings);
+
+      const loadedEmail = { ...emailConfig, ...emailRes.data };
+      setEmailConfig(loadedEmail);
+      setInitialEmailConfig(loadedEmail);
+
       setTotalContacts(Array.isArray(cRes.data) ? cRes.data.filter((c) => c.active).length : 0);
       setBotStatus(bRes.data?.status || 'disconnected');
     } catch {
@@ -58,17 +85,39 @@ function Settings() {
     }
   }
 
-  const handleSave = async (e) => {
+  const handleSaveAll = async (e) => {
     if (e) e.preventDefault();
     setSaving(true);
     try {
-      await api.put('/settings', settings);
+      await Promise.all([
+        api.put('/settings', settings),
+        api.put('/settings/email', emailConfig),
+      ]);
       setInitialSettings(settings);
-      toast.success('Configurações salvas com sucesso!');
+      setInitialEmailConfig(emailConfig);
+      toast.success('Configurações salvas com sucesso');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Erro ao salvar configurações');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSendTestEmail = async (e) => {
+    e.preventDefault();
+    if (!testEmailAddress.trim()) {
+      toast.error('Informe um e-mail de destino');
+      return;
+    }
+    setTestingEmail(true);
+    try {
+      await api.post('/settings/email/test', { email: testEmailAddress.trim() });
+      toast.success(`E-mail de teste enviado com sucesso para ${testEmailAddress}`);
+      setShowTestModal(false);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Falha ao enviar e-mail de teste');
+    } finally {
+      setTestingEmail(false);
     }
   };
 
@@ -87,26 +136,33 @@ function Settings() {
 
   const delaySeconds = Math.round(parseInt(settings.delay_ms || 30000, 10) / 1000);
   const scheduleEnabled = settings.schedule_enabled === 'true';
-  const isDirty = initialSettings !== null && Object.keys(settings).some(
+
+  const isSettingsDirty = initialSettings !== null && Object.keys(settings).some(
     (key) => String(settings[key] ?? '') !== String(initialSettings[key] ?? '')
   );
 
+  const isEmailDirty = initialEmailConfig !== null && Object.keys(emailConfig).some(
+    (key) => String(emailConfig[key] ?? '') !== String(initialEmailConfig[key] ?? '')
+  );
+
+  const isDirty = isSettingsDirty || isEmailDirty;
+
   if (loading) {
     return (
-      <div className="page-container" style={{ padding: '28px', maxWidth: '1200px', margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
+      <div className="main-container">
+        <div className="resend-header">
           <div>
-            <div className="skeleton" style={{ width: '260px', height: '32px', marginBottom: '8px' }} />
-            <div className="skeleton" style={{ width: '380px', height: '16px' }} />
+            <div className="skeleton" style={{ width: '220px', height: '28px', marginBottom: '8px' }} />
+            <div className="skeleton" style={{ width: '340px', height: '16px' }} />
           </div>
-          <div className="skeleton" style={{ width: '180px', height: '44px' }} />
+          <div className="skeleton" style={{ width: '160px', height: '36px' }} />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '20px' }}>
+        <div className="resend-grid-2">
           {[1, 2, 3, 4].map((n) => (
-            <div key={n} className="card" style={{ padding: '24px' }}>
-              <div className="skeleton" style={{ width: '180px', height: '22px', marginBottom: '20px' }} />
-              <div className="skeleton" style={{ width: '100%', height: '40px', marginBottom: '14px' }} />
-              <div className="skeleton" style={{ width: '100%', height: '40px' }} />
+            <div key={n} className="resend-card" style={{ minHeight: '200px' }}>
+              <div className="skeleton" style={{ width: '160px', height: '20px', marginBottom: '18px' }} />
+              <div className="skeleton" style={{ width: '100%', height: '38px', marginBottom: '12px' }} />
+              <div className="skeleton" style={{ width: '100%', height: '38px' }} />
             </div>
           ))}
         </div>
@@ -115,290 +171,389 @@ function Settings() {
   }
 
   return (
-    <div className="page-container" style={{ padding: '28px', maxWidth: '1200px', margin: '0 auto' }}>
-      {/* Top Header */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '28px',
-        flexWrap: 'wrap',
-        gap: '16px',
-        borderBottom: '1px solid var(--border-default)',
-        paddingBottom: '20px',
-      }}>
+    <div className="main-container">
+      {/* Resend Header */}
+      <div className="resend-header">
         <div>
-          <h1 style={{
-            fontSize: '24px',
-            fontWeight: 700,
-            color: 'var(--text-primary)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px'
-          }}>
-            <SettingsIcon size={26} color="var(--accent)" />
-            Configurações do Sistema
-          </h1>
-          <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Gerencie os parâmetros de envio, pausas anti-ban, agendamento diário e status de conexão
+          <h1 className="resend-title">Configurações</h1>
+          <p className="resend-subtitle">
+            Gerenciamento de disparos, agendamento diário e envio transacional de e-mails
           </p>
         </div>
 
         <button
+          type="button"
           className="btn btn-primary"
-          onClick={handleSave}
+          onClick={handleSaveAll}
           disabled={saving || !isDirty}
-          style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', fontSize: '14px' }}
+          style={{ padding: '8px 18px', fontWeight: 600 }}
         >
           {saving ? (
-            <><Loader2 size={16} className="spin" /> Salvando...</>
+            <><Loader2 size={14} className="spin" /> Salvando...</>
           ) : (
-            <><Save size={16} /> Salvar Configurações</>
+            <><Save size={14} /> Salvar Alterações</>
           )}
         </button>
       </div>
 
-      {/* Grid de Cards Organizado */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))',
-        gap: '24px',
-        alignItems: 'stretch',
-      }}>
+      <div className="resend-grid-2">
         {/* Card 1: Parâmetros de Disparo */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-          <div>
-            <div className="card-header" style={{ marginBottom: '20px' }}>
-              <div>
-                <span className="card-title">Parâmetros de Envio</span>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
-                  Intervalo entre mensagens e lote máximo
-                </span>
-              </div>
-              <div className="card-icon green">
-                <Zap size={20} />
-              </div>
-            </div>
+        <div className="resend-card">
+          <div className="resend-card-header">
+            <span className="resend-card-title">Parâmetros de Envio</span>
+            <Zap size={16} color="var(--accent)" />
+          </div>
 
-            <div className="input-group" style={{ marginBottom: '20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <label style={{ margin: 0 }}>Delay entre cada mensagem</label>
-                <span style={{
-                  padding: '2px 10px',
-                  background: 'rgba(37, 211, 102, 0.15)',
-                  border: '1px solid rgba(37, 211, 102, 0.3)',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  color: 'var(--accent)',
-                  fontFamily: 'var(--font-mono)'
-                }}>
-                  {formatDelay(parseInt(settings.delay_ms || 30000, 10))}
-                </span>
-              </div>
-              <input
-                type="range"
-                min={5}
-                max={300}
-                step={5}
-                value={delaySeconds}
-                onChange={(e) => setSettings({ ...settings, delay_ms: String(Number(e.target.value) * 1000) })}
-                style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                <span>5s (Rápido)</span>
-                <span>30s (Recomendado)</span>
-                <span>5m (Muito Seguro)</span>
-              </div>
-            </div>
-
-            <div className="input-group">
-              <label>Contatos ativos na fila</label>
-              <div style={{
-                padding: '12px 16px',
-                background: 'var(--bg-input)',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-default)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>Intervalo entre Mensagens</span>
+              <span style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '12px',
+                fontWeight: 600,
+                color: 'var(--accent)',
+                padding: '2px 8px',
+                borderRadius: 'var(--radius-sm)',
+                background: 'rgba(37, 211, 102, 0.12)'
               }}>
-                <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 600 }}>
-                  {totalContacts.toLocaleString('pt-BR')} contatos habilitados
-                </span>
-                <span style={{ fontSize: '12px', color: 'var(--accent)', background: 'rgba(37, 211, 102, 0.1)', padding: '2px 8px', borderRadius: '4px' }}>
-                  Automático
-                </span>
+                {formatDelay(parseInt(settings.delay_ms || 30000, 10))}
+              </span>
+            </div>
+            <input
+              type="range"
+              min={5}
+              max={300}
+              step={5}
+              value={delaySeconds}
+              onChange={(e) => setSettings({ ...settings, delay_ms: String(Number(e.target.value) * 1000) })}
+              style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+              <span>5s (Rápido)</span>
+              <span>30s (Padrão Recomendado)</span>
+              <span>5m (Anti-bloqueio)</span>
+            </div>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>Contatos Prontos na Fila</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Sincronização com planilhas ativas</div>
               </div>
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px', display: 'block' }}>
-                A quantidade do próximo disparo sincroniza automaticamente com as planilhas ativas.
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '14px', fontWeight: 600, color: '#fff' }}>
+                {totalContacts.toLocaleString('pt-BR')}
               </span>
             </div>
           </div>
         </div>
 
         {/* Card 2: Agendamento Diário */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-          <div>
-            <div className="card-header" style={{ marginBottom: '20px' }}>
-              <div>
-                <span className="card-title">Agendamento Automático</span>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
-                  Disparo diário recorrente agendado
-                </span>
+        <div className="resend-card">
+          <div className="resend-card-header">
+            <span className="resend-card-title">Agendamento Diário (Cron)</span>
+            <Clock size={16} color="var(--warning)" />
+          </div>
+
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '12px 14px',
+            background: 'var(--bg-input)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-default)',
+            marginBottom: '16px'
+          }}>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                Envio Recorrente Automático
               </div>
-              <div className="card-icon yellow">
-                <Clock size={20} />
+              <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                {scheduleEnabled ? 'Disparos ativos diariamente' : 'Disparos automáticos pausados'}
               </div>
             </div>
+            <div
+              className={`toggle ${scheduleEnabled ? 'active' : ''}`}
+              onClick={() => setSettings({ ...settings, schedule_enabled: scheduleEnabled ? 'false' : 'true' })}
+              style={{ cursor: 'pointer' }}
+            />
+          </div>
 
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '14px 16px',
-              background: 'var(--bg-input)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-default)',
-              marginBottom: '16px'
-            }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)' }}>
-                  Ativação do Cron Diário
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                  {scheduleEnabled ? 'O sistema disparará todos os dias no horário configurado' : 'Disparos automáticos estão pausados'}
-                </div>
-              </div>
-              <div
-                className={`toggle ${scheduleEnabled ? 'active' : ''}`}
-                onClick={() => setSettings({ ...settings, schedule_enabled: scheduleEnabled ? 'false' : 'true' })}
-                style={{ cursor: 'pointer' }}
+          {scheduleEnabled && (
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>
+                Horário Diário de Disparo
+              </label>
+              <input
+                type="time"
+                className="input"
+                value={settings.schedule_time || '15:00'}
+                onChange={(e) => setSettings({ ...settings, schedule_time: e.target.value })}
+                style={{ fontFamily: 'var(--font-mono)', fontSize: '14px' }}
               />
             </div>
-
-            {scheduleEnabled && (
-              <div className="input-group" style={{ animation: 'fadeIn 0.3s ease' }}>
-                <label>Horário Diário de Envio</label>
-                <input
-                  type="time"
-                  className="input input-mono"
-                  value={settings.schedule_time || '15:00'}
-                  onChange={(e) => setSettings({ ...settings, schedule_time: e.target.value })}
-                  style={{ fontSize: '15px' }}
-                />
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px', display: 'block' }}>
-                  O envio diário começará pontualmente às <strong>{settings.schedule_time || '15:00'}</strong>.
-                </span>
-              </div>
-            )}
-          </div>
+          )}
         </div>
 
-        {/* Card 3: Status do Bot WhatsApp */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-          <div>
-            <div className="card-header" style={{ marginBottom: '20px' }}>
-              <div>
-                <span className="card-title">Motor WhatsApp (Baileys)</span>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
-                  Status da sessão e conexão ativa
+        {/* Card 3: Provedor de E-mail (Coolify Architecture) */}
+        <div className="resend-card" style={{ gridColumn: 'span 2' }}>
+          <div className="resend-card-header">
+            <div>
+              <span className="resend-card-title">Provedor de E-mail & Convites</span>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginTop: '2px' }}>
+                Configuração para disparo transacional de convites da equipe e alertas (Resend ou SMTP)
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {emailConfig.email_provider !== 'disabled' && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setShowTestModal(true)}
+                >
+                  <Send size={13} /> Testar E-mail
+                </button>
+              )}
+              <Mail size={16} color="var(--accent)" />
+            </div>
+          </div>
+
+          {/* Seletor de Modo */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+            <button
+              type="button"
+              className={`btn btn-sm ${emailConfig.email_provider === 'disabled' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setEmailConfig({ ...emailConfig, email_provider: 'disabled' })}
+            >
+              Desativado
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm ${emailConfig.email_provider === 'resend' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setEmailConfig({ ...emailConfig, email_provider: 'resend' })}
+            >
+              Resend API
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm ${emailConfig.email_provider === 'smtp' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setEmailConfig({ ...emailConfig, email_provider: 'smtp' })}
+            >
+              SMTP Próprio
+            </button>
+          </div>
+
+          {emailConfig.email_provider === 'resend' && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+              <div className="input-group">
+                <label>Resend API Key</label>
+                <input
+                  type="password"
+                  className="input"
+                  placeholder={emailConfig.resend_api_key_masked || 're_123456789...'}
+                  value={emailConfig.resend_api_key || ''}
+                  onChange={(e) => setEmailConfig({ ...emailConfig, resend_api_key: e.target.value })}
+                />
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  {emailConfig.has_resend_key ? 'Chave configurada. Deixe em branco para manter.' : 'Obtenha em resend.com/api-keys'}
                 </span>
               </div>
-              <div className={`card-icon ${botStatus === 'connected' ? 'green' : 'red'}`}>
-                <QrCode size={20} />
+
+              <div className="input-group">
+                <label>Nome do Remetente</label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="WhaSender"
+                  value={emailConfig.mail_from_name || ''}
+                  onChange={(e) => setEmailConfig({ ...emailConfig, mail_from_name: e.target.value })}
+                />
+              </div>
+
+              <div className="input-group">
+                <label>E-mail do Remetente</label>
+                <input
+                  type="email"
+                  className="input"
+                  placeholder="onboarding@resend.dev ou equipe@seudominio.com"
+                  value={emailConfig.mail_from_address || ''}
+                  onChange={(e) => setEmailConfig({ ...emailConfig, mail_from_address: e.target.value })}
+                />
               </div>
             </div>
+          )}
 
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '16px',
-              background: 'var(--bg-input)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-default)',
-              marginBottom: '16px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div className={`status-dot ${botStatus}`} style={{ width: '10px', height: '10px' }} />
-                <div>
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', textTransform: 'capitalize' }}>
-                    {botStatus === 'connected' ? 'WhatsApp Conectado' : botStatus === 'disconnected' ? 'Desconectado' : botStatus}
-                  </div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                    {botStatus === 'connected' ? 'Pronto para disparar e validar contatos' : 'Requer pareamento no Dashboard'}
-                  </div>
-                </div>
+          {emailConfig.email_provider === 'smtp' && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+              <div className="input-group">
+                <label>Host SMTP</label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="smtp.exemplo.com"
+                  value={emailConfig.smtp_host || ''}
+                  onChange={(e) => setEmailConfig({ ...emailConfig, smtp_host: e.target.value })}
+                />
               </div>
+
+              <div className="input-group">
+                <label>Porta</label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="587"
+                  value={emailConfig.smtp_port || ''}
+                  onChange={(e) => setEmailConfig({ ...emailConfig, smtp_port: e.target.value })}
+                />
+              </div>
+
+              <div className="input-group">
+                <label>Usuário / Login</label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="usuario@exemplo.com"
+                  value={emailConfig.smtp_user || ''}
+                  onChange={(e) => setEmailConfig({ ...emailConfig, smtp_user: e.target.value })}
+                />
+              </div>
+
+              <div className="input-group">
+                <label>Senha</label>
+                <input
+                  type="password"
+                  className="input"
+                  placeholder={emailConfig.has_smtp_pass ? '••••••••' : 'Sua senha SMTP'}
+                  value={emailConfig.smtp_pass || ''}
+                  onChange={(e) => setEmailConfig({ ...emailConfig, smtp_pass: e.target.value })}
+                />
+              </div>
+
+              <div className="input-group">
+                <label>Nome do Remetente</label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="WhaSender"
+                  value={emailConfig.mail_from_name || ''}
+                  onChange={(e) => setEmailConfig({ ...emailConfig, mail_from_name: e.target.value })}
+                />
+              </div>
+
+              <div className="input-group">
+                <label>E-mail do Remetente</label>
+                <input
+                  type="email"
+                  className="input"
+                  placeholder="noreply@seudominio.com"
+                  value={emailConfig.mail_from_address || ''}
+                  onChange={(e) => setEmailConfig({ ...emailConfig, mail_from_address: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+
+          {emailConfig.email_provider === 'disabled' && (
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
+              O envio de convites por e-mail está desativado. Os convites da equipe ainda podem ser compartilhados manualmente via link direto.
+            </p>
+          )}
+        </div>
+
+        {/* Card 4: Conexão do Motor WhatsApp */}
+        <div className="resend-card" style={{ gridColumn: 'span 2' }}>
+          <div className="resend-card-header">
+            <div>
+              <span className="resend-card-title">Motor WhatsApp (Baileys)</span>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
+                Status da conexão e sincronização com os servidores do WhatsApp
+              </span>
+            </div>
+            <div className={`status-dot ${botStatus || 'disconnected'}`} />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span className={`badge ${botStatus === 'connected' ? 'badge-success' : 'badge-error'}`}>
                 {botStatus === 'connected' ? 'Online' : 'Offline'}
               </span>
+              <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                {botStatus === 'connected' ? 'Dispositivo conectado e autenticado' : 'Nenhum aparelho conectado'}
+              </span>
             </div>
-          </div>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={checkBotStatus}
-              disabled={refreshingBot}
-              style={{ flex: 1, justifyContent: 'center', gap: '6px' }}
-            >
-              <RefreshCw size={14} className={refreshingBot ? 'spin' : ''} />
-              {refreshingBot ? 'Verificando...' : 'Atualizar Status'}
-            </button>
-            {botStatus !== 'connected' && (
+            <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 type="button"
-                className="btn btn-primary"
-                onClick={() => navigate('/dashboard')}
-                style={{ flex: 1, justifyContent: 'center' }}
+                className="btn btn-secondary btn-sm"
+                onClick={checkBotStatus}
+                disabled={refreshingBot}
               >
-                Conectar WhatsApp
+                <RefreshCw size={13} className={refreshingBot ? 'spin' : ''} />
+                <span>Atualizar Status</span>
               </button>
-            )}
+              {botStatus !== 'connected' && (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => navigate('/dashboard')}
+                >
+                  Conectar Aparelho
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Barra de Ação no Rodapé */}
-      <div style={{
-        marginTop: '32px',
-        padding: '16px 20px',
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border-default)',
-        borderRadius: 'var(--radius-lg)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '12px'
-      }}>
-        <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-          As alterações entram em vigor imediatamente após salvar.
+      {/* Modal Teste de E-mail */}
+      {showTestModal && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: '420px' }}>
+            <div className="modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Mail size={18} color="var(--accent)" /> Enviar E-mail de Teste
+              </h3>
+            </div>
+            <form onSubmit={handleSendTestEmail}>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: 1.5 }}>
+                Digite um endereço de e-mail para verificar se a entrega através do provedor selecionado está operando.
+              </p>
+              <div className="input-group" style={{ marginBottom: '20px' }}>
+                <label>E-mail de Destino</label>
+                <input
+                  type="email"
+                  className="input"
+                  placeholder="seuemail@exemplo.com"
+                  value={testEmailAddress}
+                  onChange={(e) => setTestEmailAddress(e.target.value)}
+                  required
+                  autoFocus
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowTestModal(false)}
+                  disabled={testingEmail}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={testingEmail || !testEmailAddress.trim()}
+                >
+                  {testingEmail ? <Loader2 size={14} className="spin" /> : <Send size={14} />}
+                  <span>Disparar Teste</span>
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-        <button
-          className="btn btn-primary"
-          onClick={handleSave}
-          disabled={saving || !isDirty}
-          style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 24px', fontSize: '14px' }}
-        >
-          {saving ? (
-            <><Loader2 size={16} className="spin" /> Salvando...</>
-          ) : (
-            <><Save size={16} /> Salvar Configurações</>
-          )}
-        </button>
-      </div>
-
-      <style>{`
-        .spin { animation: spin 1s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
-      `}</style>
+      )}
     </div>
   );
 }
-
-export default Settings;

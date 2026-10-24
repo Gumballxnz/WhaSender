@@ -4,7 +4,7 @@ import { Send, Play, Loader2, Users, Clock, FileSpreadsheet, Info, AlertTriangle
 import toast from 'react-hot-toast';
 import api from '../services/api';
 
-function Dispatch() {
+export default function Dispatch() {
   const navigate = useNavigate();
   const [contacts, setContacts] = useState([]);
   const [delaySeconds, setDelaySeconds] = useState(30);
@@ -86,22 +86,93 @@ function Dispatch() {
   }
 
   return (
-    <div>
-      <div className="page-header"><h2>Disparo Manual</h2><p>Configurar e iniciar envio</p></div>
-      <div className="card-grid">
-        <div className="card">
-          <div className="card-header"><span className="card-title">Configurações</span><div className="card-icon green"><Send size={20} /></div></div>
-          <div className="input-group"><label>Delay entre envios (segundos)</label><input type="number" className="input input-mono" value={delaySeconds} onChange={e => setDelaySeconds(Math.max(5, parseInt(e.target.value) || 5))} min={5} max={120} /></div>
-          <div className="input-group"><label>Quantidade máxima</label><input type="number" className="input input-mono" value={maxCount} onChange={e => setMaxCount(Math.max(1, parseInt(e.target.value) || 1))} min={1} max={contacts.length || 999} /></div>
-          <div className="input-group"><label>Iniciar a partir do nº</label><input type="number" className="input input-mono" value={startFrom} onChange={e => setStartFrom(Math.max(1, Math.min(contacts.length, parseInt(e.target.value) || 1)))} min={1} max={contacts.length || 1} /></div>
-          <div className="input-group" style={{ borderTop: '1px solid var(--border-default)', paddingTop: '12px' }}><label>Pausar após X envios (0 = desativado)</label><input type="number" className="input input-mono" value={batchSize} onChange={e => setBatchSize(Math.max(0, parseInt(e.target.value) || 0))} min={0} /></div>
+    <div className="main-container">
+      <div className="resend-header">
+        <div>
+          <h1 className="resend-title">Disparo Manual</h1>
+          <p className="resend-subtitle">
+            Configure parâmetros de cadência, lote anti-ban e inicie o envio
+          </p>
+        </div>
+      </div>
+
+      <div className="resend-grid-2">
+        <div className="resend-card">
+          <div className="resend-card-header">
+            <span className="resend-card-title">Parâmetros de Disparo</span>
+            <Send size={16} color="var(--accent)" />
+          </div>
+
+          <div className="input-group" style={{ marginBottom: '16px' }}>
+            <label>Delay entre envios (segundos)</label>
+            <input
+              type="number"
+              className="input input-mono"
+              value={delaySeconds}
+              onChange={e => setDelaySeconds(Math.max(5, parseInt(e.target.value) || 5))}
+              min={5}
+              max={120}
+            />
+          </div>
+
+          <div className="input-group" style={{ marginBottom: '16px' }}>
+            <label>Quantidade máxima</label>
+            <input
+              type="number"
+              className="input input-mono"
+              value={maxCount}
+              onChange={e => setMaxCount(Math.max(1, parseInt(e.target.value) || 1))}
+              min={1}
+              max={contacts.length || 999}
+            />
+          </div>
+
+          <div className="input-group" style={{ marginBottom: '16px' }}>
+            <label>Iniciar a partir do nº</label>
+            <input
+              type="number"
+              className="input input-mono"
+              value={startFrom}
+              onChange={e => setStartFrom(Math.max(1, Math.min(contacts.length, parseInt(e.target.value) || 1)))}
+              min={1}
+              max={contacts.length || 1}
+            />
+          </div>
+
+          <div className="input-group" style={{ borderTop: '1px solid var(--border-default)', paddingTop: '14px', marginBottom: '16px' }}>
+            <label>Pausar após X envios (0 = desativado)</label>
+            <input
+              type="number"
+              className="input input-mono"
+              value={batchSize}
+              onChange={e => setBatchSize(Math.max(0, parseInt(e.target.value) || 0))}
+              min={0}
+            />
+          </div>
+
           {batchSize > 0 && (
             <>
-              <div className="input-group"><label>Tempo de Pausa (minutos)</label><input type="number" className="input input-mono" value={batchPauseMins} onChange={e => setBatchPauseMins(Math.max(1, parseInt(e.target.value) || 1))} min={1} /></div>
+              <div className="input-group" style={{ marginBottom: '16px' }}>
+                <label>Tempo de Pausa (minutos)</label>
+                <input
+                  type="number"
+                  className="input input-mono"
+                  value={batchPauseMins}
+                  onChange={e => setBatchPauseMins(Math.max(1, parseInt(e.target.value) || 1))}
+                  min={1}
+                />
+              </div>
+
               <div className="input-group">
                 <label>Limite Máximo de Pausas (0 = infinito)</label>
-                <input type="number" className="input input-mono" value={maxPauses} onChange={e => setMaxPauses(Math.max(0, parseInt(e.target.value) || 0))} min={0} />
-                <div style={{fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px'}}>
+                <input
+                  type="number"
+                  className="input input-mono"
+                  value={maxPauses}
+                  onChange={e => setMaxPauses(Math.max(0, parseInt(e.target.value) || 0))}
+                  min={0}
+                />
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Info size={13} color="var(--accent)" />
                   <span>Com {preview.length} contatos a enviar, o bot fará <strong>{actualPauses} pausa{actualPauses !== 1 ? 's' : ''}</strong> reais.</span>
                 </div>
@@ -109,36 +180,106 @@ function Dispatch() {
             </>
           )}
         </div>
-        <div className="card">
-          <div className="card-header"><span className="card-title">Resumo</span><div className="card-icon blue"><FileSpreadsheet size={20} /></div></div>
-          <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
-            <div style={{display:'flex',alignItems:'center',gap:'10px'}}><Users size={18} color="var(--accent)" /><div><div className="mono" style={{fontSize:'18px',fontWeight:600}}>{preview.length}</div><div className="card-label">contatos a enviar</div></div></div>
-            <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
-              <Clock size={18} color="var(--warning)" />
-              <div>
-                <div className="mono" style={{fontSize:'18px',fontWeight:600}}>~{estStr}</div>
-                <div className="card-label">estimado {actualPauses > 0 ? `(c/ ${actualPauses} pausa${actualPauses > 1 ? 's' : ''})` : ''}</div>
+
+        <div className="resend-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <div className="resend-card-header">
+              <span className="resend-card-title">Resumo do Envio</span>
+              <FileSpreadsheet size={16} color="var(--accent)" />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-sm)', background: 'rgba(37, 211, 102, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Users size={18} color="var(--accent)" />
+                </div>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '20px', fontWeight: 600, color: '#fff' }}>
+                    {preview.length}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>contatos selecionados na fila</div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-sm)', background: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Clock size={18} color="var(--warning)" />
+                </div>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '20px', fontWeight: 600, color: '#fff' }}>
+                    ~{estStr}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    tempo estimado {actualPauses > 0 ? `(c/ ${actualPauses} pausa${actualPauses > 1 ? 's' : ''})` : ''}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-          <button className="btn btn-primary btn-lg" style={{width:'100%',justifyContent:'center',marginTop:'20px'}} onClick={startDispatch} disabled={dispatching || preview.length === 0 || botStatus !== 'connected'}>
-            {dispatching ? <><Loader2 size={20} style={{animation:'spin 1s linear infinite'}} /> Disparando...</> : <><Play size={20} /> Iniciar Disparo</>}
-          </button>
-          {botStatus !== 'connected' && (
-            <div style={{ color: 'var(--danger)', fontSize: '13px', textAlign: 'center', marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-              <AlertTriangle size={15} />
-              <span>O WhatsApp precisa estar conectado para iniciar disparos.</span>
-            </div>
-          )}
+
+          <div>
+            <button
+              type="button"
+              className="btn btn-primary btn-lg"
+              style={{ width: '100%', justifyContent: 'center', marginTop: '20px', fontWeight: 600 }}
+              onClick={startDispatch}
+              disabled={dispatching || preview.length === 0 || botStatus !== 'connected'}
+            >
+              {dispatching ? (
+                <><Loader2 size={18} className="spin" /> Iniciando...</>
+              ) : (
+                <><Play size={18} /> Iniciar Disparo</>
+              )}
+            </button>
+
+            {botStatus !== 'connected' && (
+              <div style={{ color: 'var(--error)', fontSize: '12px', textAlign: 'center', marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                <AlertTriangle size={14} />
+                <span>O WhatsApp precisa estar conectado para disparar.</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-      <div className="table-container" style={{marginTop:'20px'}}><div className="table-toolbar"><span style={{fontWeight:600}}>Fila ({preview.length})</span></div>
-        <table><thead><tr><th>#</th><th>Nome</th><th>Telefone</th><th>Arquivo</th></tr></thead><tbody>
-          {preview.map((c, i) => (<tr key={c.id}><td className="mono" style={{color:'var(--text-muted)'}}>{i+1}</td><td>{c.name}</td><td className="mono">{c.phone}</td><td className="mono" style={{color:'var(--accent)'}}>{c.file_name}</td></tr>))}
-        </tbody></table>
+
+      <div className="resend-card" style={{ marginTop: '24px', padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border-default)', fontSize: '13px', fontWeight: 600, color: '#fff' }}>
+          Fila de Destinatários ({preview.length})
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border-default)', background: 'rgba(255, 255, 255, 0.02)' }}>
+                <th style={{ padding: '10px 18px', fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.6px' }}>#</th>
+                <th style={{ padding: '10px 18px', fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.6px' }}>Nome</th>
+                <th style={{ padding: '10px 18px', fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.6px' }}>Telefone</th>
+                <th style={{ padding: '10px 18px', fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.6px' }}>Arquivo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {preview.map((c, i) => (
+                <tr
+                  key={c.id}
+                  style={{ borderBottom: '1px solid var(--border-default)' }}
+                >
+                  <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                    {i + 1}
+                  </td>
+                  <td style={{ padding: '12px 18px', color: 'var(--text-primary)' }}>
+                    {c.name}
+                  </td>
+                  <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
+                    {c.phone}
+                  </td>
+                  <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: 'var(--accent)' }}>
+                    {c.file_name}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
-export default Dispatch;

@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom';
 import {
-  LayoutDashboard, Send, Users, Settings, LogOut, Zap, Folder,
+  BarChart3, Send, Users, Settings, LogOut, Folder,
   Cpu, CheckCircle2, Contact, Building2, UserCircle, AlertTriangle, X,
   ChevronDown, Plus, Check, Loader2
 } from 'lucide-react';
@@ -11,22 +11,38 @@ import useSocketStore from '../store/socketStore';
 import { useSocket } from '../services/useSocket';
 import api from '../services/api';
 
-const navItems = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/validator', icon: CheckCircle2, label: 'Validador' },
-  { to: '/files', icon: Folder, label: 'Arquivos' },
-  { to: '/generator', icon: Cpu, label: 'Gerador' },
-  { to: '/dispatch', icon: Send, label: 'Disparo' },
-  { to: '/contacts', icon: Contact, label: 'Contatos' },
-  { to: '/team', icon: Users, label: 'Equipe' },
-  { to: '/profile', icon: UserCircle, label: 'Meu Perfil' },
-  { to: '/settings', icon: Settings, label: 'Configurações' },
+const navGroups = [
+  {
+    title: 'Campanhas',
+    items: [
+      { to: '/dashboard', icon: BarChart3, label: 'Métricas' },
+      { to: '/dispatch', icon: Send, label: 'Disparos' },
+      { to: '/contacts', icon: Contact, label: 'Contatos' },
+    ]
+  },
+  {
+    title: 'Ferramentas',
+    items: [
+      { to: '/files', icon: Folder, label: 'Arquivos & Lotes' },
+      { to: '/generator', icon: Cpu, label: 'Gerador de Leads' },
+      { to: '/validator', icon: CheckCircle2, label: 'Validador' },
+    ]
+  },
+  {
+    title: 'Administração',
+    items: [
+      { to: '/team', icon: Users, label: 'Equipe & Acessos' },
+      { to: '/settings', icon: Settings, label: 'Configurações' },
+      { to: '/profile', icon: UserCircle, label: 'Meu Perfil' },
+    ]
+  }
 ];
 
 function Layout() {
   const navigate = useNavigate();
   const { user, currentOrganization, organizations, setAuth, setCurrentOrganization, clearToken } = useAuthStore();
   const resetSocketStore = useSocketStore((s) => s.reset);
+  const botStatus = useSocketStore((s) => s.botStatus);
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -180,56 +196,35 @@ function Layout() {
   return (
     <div className="app-layout">
       <aside className="sidebar">
-        <div className="sidebar-brand">
-          <div className="sidebar-brand-icon">
-            <Zap size={22} color="#fff" />
-          </div>
-          <div>
-            <h1>WhaSender</h1>
-            <span>Automação WhatsApp</span>
-          </div>
-        </div>
-
-        <div ref={orgDropdownRef} style={{ position: 'relative', margin: '10px 14px', flexShrink: 0 }}>
+        <div style={{ padding: '14px 12px 6px', position: 'relative' }} ref={orgDropdownRef}>
           <button
             type="button"
+            className={`sidebar-org-btn ${showOrgDropdown ? 'active' : ''}`}
             onClick={() => setShowOrgDropdown(!showOrgDropdown)}
-            style={{
-              width: '100%',
-              padding: '10px 12px',
-              background: 'var(--bg-input)',
-              borderRadius: 'var(--radius-md)',
-              border: showOrgDropdown ? '1px solid var(--accent)' : '1px solid var(--border-default)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '8px',
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'var(--transition-fast)',
-            }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-              <Building2 size={16} color="var(--accent)" style={{ flexShrink: 0 }} />
-              <div style={{ overflow: 'hidden' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
-                  {currentOrganization?.name || 'Organização'}
-                </span>
-                <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, overflow: 'hidden' }}>
+              <div className="sidebar-org-avatar">
+                {(currentOrganization?.name || 'W').charAt(0).toUpperCase()}
+              </div>
+              <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {currentOrganization?.name || 'WhaSender'}
+                </div>
+                <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
                   {currentOrganization?.role === 'owner' ? 'Proprietário' : currentOrganization?.role === 'admin' ? 'Administrador' : 'Membro'}
-                </span>
+                </div>
               </div>
             </div>
-            <ChevronDown size={14} color="var(--text-secondary)" style={{ flexShrink: 0, transform: showOrgDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            <ChevronDown size={14} color="var(--text-muted)" style={{ flexShrink: 0, transform: showOrgDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
           </button>
 
           {showOrgDropdown && (
             <div
               style={{
                 position: 'absolute',
-                top: 'calc(100% + 6px)',
-                left: 0,
-                right: 0,
+                top: 'calc(100% + 4px)',
+                left: '12px',
+                right: '12px',
                 background: 'var(--bg-card)',
                 border: '1px solid var(--border-default)',
                 borderRadius: 'var(--radius-md)',
@@ -240,8 +235,8 @@ function Layout() {
                 overflowY: 'auto',
               }}
             >
-              <div style={{ padding: '4px 8px 6px', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                Suas Organizações
+              <div style={{ padding: '4px 8px 6px', fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                Organizações
               </div>
 
               {(organizations || []).map((org) => {
@@ -259,14 +254,14 @@ function Layout() {
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       borderRadius: 'var(--radius-sm)',
-                      background: isActive ? 'var(--bg-input)' : 'transparent',
+                      background: isActive ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
                       border: 'none',
                       cursor: 'pointer',
                       textAlign: 'left',
                       marginBottom: '2px',
                     }}
                   >
-                    <div style={{ overflow: 'hidden' }}>
+                    <div style={{ overflow: 'hidden', minWidth: 0 }}>
                       <div style={{ fontSize: '12px', fontWeight: isActive ? 600 : 500, color: isActive ? 'var(--accent)' : 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {org.name}
                       </div>
@@ -306,7 +301,7 @@ function Layout() {
                   }}
                 >
                   <Plus size={14} />
-                  <span>Criar Nova Organização</span>
+                  <span>Nova Organização</span>
                 </button>
               </div>
             </div>
@@ -314,19 +309,40 @@ function Layout() {
         </div>
 
         <nav className="sidebar-nav">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-            >
-              <item.icon size={20} />
-              <span>{item.label}</span>
-            </NavLink>
+          {navGroups.map((group) => (
+            <div key={group.title} style={{ marginBottom: '8px' }}>
+              <div className="sidebar-group-title">{group.title}</div>
+              {group.items.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+                >
+                  <item.icon />
+                  <span>{item.label}</span>
+                </NavLink>
+              ))}
+            </div>
           ))}
         </nav>
 
-        <div className="sidebar-footer" style={{ borderTop: '1px solid var(--border-default)', padding: '12px 14px' }}>
+        <div className="sidebar-footer">
+          <div className="sidebar-status-pill">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, overflow: 'hidden' }}>
+              <div className={`status-dot ${botStatus || 'disconnected'}`} />
+              <span style={{ fontSize: '11.5px', color: botStatus === 'connected' ? 'var(--text-primary)' : 'var(--text-muted)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {botStatus === 'connected' ? 'WhatsApp Online' : botStatus === 'connecting' ? 'Conectando...' : botStatus === 'qr' ? 'Aguardando QR' : 'WhatsApp Offline'}
+              </span>
+            </div>
+            {botStatus === 'connected' ? (
+              <Check size={12} color="var(--accent)" style={{ flexShrink: 0 }} />
+            ) : (
+              <Link to="/dashboard" style={{ color: 'var(--accent)', fontSize: '11px', textDecoration: 'none', fontWeight: 600, flexShrink: 0 }}>
+                Conectar
+              </Link>
+            )}
+          </div>
+
           {user && (
             <Link
               to="/profile"
@@ -334,33 +350,34 @@ function Layout() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '10px',
-                marginBottom: '10px',
                 padding: '6px 8px',
                 textDecoration: 'none',
                 borderRadius: 'var(--radius-sm)',
                 transition: 'var(--transition-fast)',
+                marginTop: '2px',
               }}
             >
               <div style={{
-                width: '32px',
-                height: '32px',
+                width: '28px',
+                height: '28px',
                 borderRadius: '50%',
-                background: 'var(--bg-input)',
+                background: 'rgba(255, 255, 255, 0.08)',
                 border: '1px solid var(--border-default)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontWeight: 700,
-                fontSize: '12px',
-                color: 'var(--text-primary)'
+                fontWeight: 600,
+                fontSize: '11px',
+                color: '#ffffff',
+                flexShrink: 0
               }}>
-                {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                {user.name ? user.name.charAt(0).toUpperCase() : (user.username || 'U').charAt(0).toUpperCase()}
               </div>
-              <div style={{ overflow: 'hidden' }}>
-                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                <div style={{ fontSize: '12.5px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {user.name || user.username}
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {user.email}
                 </div>
               </div>
@@ -368,12 +385,13 @@ function Layout() {
           )}
 
           <button
+            type="button"
             className="sidebar-link"
             onClick={() => setShowLogoutConfirm(true)}
-            style={{ width: '100%', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', padding: '8px 10px', color: 'var(--text-secondary)' }}
+            style={{ width: '100%', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', padding: '6px 8px', color: 'var(--text-muted)' }}
           >
-            <LogOut size={18} />
-            <span>Sair</span>
+            <LogOut size={16} />
+            <span>Encerrar Sessão</span>
           </button>
         </div>
       </aside>
