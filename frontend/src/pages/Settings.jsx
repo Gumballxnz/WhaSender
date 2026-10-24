@@ -109,9 +109,16 @@ export default function Settings() {
       toast.error('Informe um e-mail de destino');
       return;
     }
+    if (emailConfig.email_provider === 'disabled') {
+      toast.error('Selecione Resend ou SMTP antes de disparar o teste');
+      return;
+    }
     setTestingEmail(true);
     try {
-      await api.post('/settings/email/test', { email: testEmailAddress.trim() });
+      await api.post('/settings/email/test', {
+        email: testEmailAddress.trim(),
+        ...emailConfig
+      });
       toast.success(`E-mail de teste enviado com sucesso para ${testEmailAddress}`);
       setShowTestModal(false);
     } catch (err) {
@@ -518,7 +525,7 @@ export default function Settings() {
             </div>
             <form onSubmit={handleSendTestEmail}>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: 1.5 }}>
-                Digite um endereço de e-mail para verificar se a entrega através do provedor selecionado está operando.
+                Digite um endereço de e-mail para verificar se a entrega através do provedor selecionado (<strong>{emailConfig.email_provider.toUpperCase()}</strong>) está operando.
               </p>
               <div className="input-group" style={{ marginBottom: '20px' }}>
                 <label>E-mail de Destino</label>
@@ -544,7 +551,7 @@ export default function Settings() {
                 <button
                   type="submit"
                   className="btn btn-primary"
-                  disabled={testingEmail || !testEmailAddress.trim()}
+                  disabled={testingEmail || !testEmailAddress.trim() || emailConfig.email_provider === 'disabled'}
                 >
                   {testingEmail ? <Loader2 size={14} className="spin" /> : <Send size={14} />}
                   <span>Disparar Teste</span>

@@ -37,11 +37,12 @@ function getEmailConfig() {
   return config;
 }
 
-async function sendEmail({ to, subject, html, text }) {
-  const config = getEmailConfig();
+async function sendEmail({ to, subject, html, text, configOverride }) {
+  const dbConfig = getEmailConfig();
+  const config = configOverride ? { ...dbConfig, ...configOverride } : dbConfig;
 
   if (!config.email_provider || config.email_provider === 'disabled') {
-    return { success: false, reason: 'Email provider is disabled' };
+    return { success: false, reason: 'Provedor de e-mail desativado. Selecione Resend ou SMTP e salve as configurações.' };
   }
 
   const fromString = `"${config.mail_from_name || 'WhaSender'}" <${config.mail_from_address || 'noreply@whasender.site'}>`;
@@ -52,6 +53,14 @@ async function sendEmail({ to, subject, html, text }) {
     }
 
     const recipients = Array.isArray(to) ? to : [to];
+    const fromAddress = config.mail_from_address && config.mail_from_address !== 'noreply@whasender.site'
+      ? config.mail_from_address.trim()
+      : 'onboarding@resend.dev';
+
+    const resendFrom = config.mail_from_name
+      ? `"${config.mail_from_name.trim()}" <${fromAddress}>`
+      : fromAddress;
+
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -59,7 +68,7 @@ async function sendEmail({ to, subject, html, text }) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: `${config.mail_from_name || 'WhaSender'} <${config.mail_from_address || 'onboarding@resend.dev'}>`,
+        from: resendFrom,
         to: recipients,
         subject,
         html,

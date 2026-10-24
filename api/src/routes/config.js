@@ -111,6 +111,29 @@ router.post('/email/test', async (req, res) => {
     return res.status(400).json({ error: 'Informe um e-mail de destino para o teste' });
   }
 
+  const {
+    email_provider,
+    smtp_host,
+    smtp_port,
+    smtp_secure,
+    smtp_user,
+    smtp_pass,
+    resend_api_key,
+    mail_from_name,
+    mail_from_address
+  } = req.body;
+
+  const configOverride = {};
+  if (email_provider) configOverride.email_provider = email_provider;
+  if (smtp_host) configOverride.smtp_host = smtp_host;
+  if (smtp_port) configOverride.smtp_port = smtp_port;
+  if (smtp_secure !== undefined) configOverride.smtp_secure = smtp_secure;
+  if (smtp_user) configOverride.smtp_user = smtp_user;
+  if (smtp_pass) configOverride.smtp_pass = smtp_pass;
+  if (resend_api_key) configOverride.resend_api_key = resend_api_key;
+  if (mail_from_name) configOverride.mail_from_name = mail_from_name;
+  if (mail_from_address) configOverride.mail_from_address = mail_from_address;
+
   try {
     const result = await sendEmail({
       to: targetEmail,
@@ -122,7 +145,8 @@ router.post('/email/test', async (req, res) => {
           <p style="color: #a1a1aa; font-size: 13px;">Data/Hora do envio: ${new Date().toLocaleString('pt-BR')}</p>
         </div>
       `,
-      text: `WhaSender: Este é um e-mail de teste confirmando que seu envio de e-mails está ativo.`
+      text: `WhaSender: Este é um e-mail de teste confirmando que seu envio de e-mails está ativo.`,
+      configOverride: Object.keys(configOverride).length > 0 ? configOverride : undefined
     });
 
     if (!result.success) {
