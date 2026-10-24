@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
+import useAuthStore from '../store/authStore';
 
 function formatDelay(ms) {
   const sec = Math.round(ms / 1000);
@@ -47,9 +48,10 @@ export default function Settings() {
   const [initialSettings, setInitialSettings] = useState(null);
   const [initialEmailConfig, setInitialEmailConfig] = useState(null);
   const [saving, setSaving] = useState(false);
+  const currentUser = useAuthStore((s) => s.user);
   const [savingEmail, setSavingEmail] = useState(false);
   const [testingEmail, setTestingEmail] = useState(false);
-  const [testEmailAddress, setTestEmailAddress] = useState('');
+  const [testEmailAddress, setTestEmailAddress] = useState(currentUser?.email || '');
   const [showTestModal, setShowTestModal] = useState(false);
   const [refreshingBot, setRefreshingBot] = useState(false);
   const [totalContacts, setTotalContacts] = useState(0);
@@ -641,6 +643,11 @@ export default function Settings() {
                   required
                   autoFocus
                 />
+                {emailConfig.email_provider === 'resend' && (
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px', display: 'block', lineHeight: 1.4 }}>
+                    Em contas de teste do Resend, a entrega é permitida apenas para o e-mail dono da conta Resend. Para enviar a qualquer e-mail, adicione seu domínio em resend.com/domains.
+                  </span>
+                )}
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                 <button
