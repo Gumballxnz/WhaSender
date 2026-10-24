@@ -12,6 +12,7 @@ function authMiddleware(req, res, next) {
     req.path === '/api/auth/login' ||
     req.path === '/api/auth/refresh' ||
     req.path === '/api/health' ||
+    req.path === '/api/files/limit' ||
     (req.method === 'GET' && req.path.startsWith('/api/organizations/invites/')) ||
     (req.method === 'POST' && /\/api\/organizations\/invites\/[^/]+\/accept/.test(req.path));
 
