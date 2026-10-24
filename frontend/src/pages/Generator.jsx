@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Phone, Hash, Shield, FileSpreadsheet, Download, Loader2,
   Cpu, History, BarChart3, Zap, AlertTriangle, CheckCircle2, XCircle,
@@ -35,9 +35,13 @@ export default function Generator() {
   const [downloadingSessionId, setDownloadingSessionId] = useState(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const pollingRef = useRef(null);
 
   useEffect(() => {
     loadData();
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
   }, []);
 
   const loadData = async () => {
@@ -55,7 +59,7 @@ export default function Generator() {
         setGenerating(true);
         setStartTime(Date.now());
         setProgress(statusRes.data);
-        startPolling();
+        startPolling(statusRes.data.sessionId);
       }
     } catch (err) {
       console.error('Erro ao carregar dados do gerador:', err);
@@ -64,13 +68,18 @@ export default function Generator() {
     }
   };
 
-  const startPolling = useCallback(() => {
-    const interval = setInterval(async () => {
+  const startPolling = useCallback((targetSessionId) => {
+    if (pollingRef.current) clearInterval(pollingRef.current);
+
+    pollingRef.current = setInterval(async () => {
       try {
-        const { data } = await api.get('/files/generate/status');
+        const url = targetSessionId
+          ? `/files/generate/status?sessionId=${targetSessionId}`
+          : '/files/generate/status';
+        const { data } = await api.get(url);
         setProgress(data);
         if (!data.running) {
-          clearInterval(interval);
+          if (pollingRef.current) clearInterval(pollingRef.current);
           setGenerating(false);
           if (data.message?.includes('sucesso')) {
             toast.success(data.message);
@@ -80,13 +89,11 @@ export default function Generator() {
           loadData();
         }
       } catch (err) {
-        clearInterval(interval);
+        if (pollingRef.current) clearInterval(pollingRef.current);
         setGenerating(false);
         toast.error('Erro ao ler status da geração');
       }
     }, 1000);
-
-    return () => clearInterval(interval);
   }, []);
 
   const getGenerationParams = () => {
@@ -108,16 +115,16 @@ export default function Generator() {
     setProgress({ current: 0, total: params.partes, message: 'Iniciando geração...' });
 
     try {
-      await api.post('/files/generate', {
+      const { data } = await api.post('/files/generate', {
         partes: params.partes,
         contatosPorParte: params.contatosPorParte,
         prefixo,
       });
       toast.success('Geração de leads iniciada!');
-      startPolling();
+      startPolling(data.sessionId);
     } catch (err) {
       setGenerating(false);
-      toast.error('Erro ao iniciar: ' + (err.response?.data?.error || err.message));
+      toast.error(err.response?.data?.error || 'Erro ao iniciar: ' + err.message);
     }
   };
 

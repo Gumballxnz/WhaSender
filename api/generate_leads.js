@@ -34,6 +34,7 @@ const prefixCodes = PREFIXO === 'ambos' ? ['86', '87'] : PREFIXO === 'todos' ? [
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('synchronous = NORMAL');
+db.pragma('busy_timeout = 30000');
 db.pragma('cache_size = 20000');
 
 const checkPhone = db.prepare('SELECT 1 FROM generated_phones WHERE phone = ? LIMIT 1');

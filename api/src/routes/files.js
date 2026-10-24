@@ -139,16 +139,75 @@ router.get('/download-zip', (req, res) => {
   }
 });
 
-let generationStatus = {
-  running: false,
-  current: 0,
-  total: 0,
-  message: '',
-  sessionId: null,
-};
+const activeGenerations = new Map();
+
+function getUserActiveGeneration(userId) {
+  for (const gen of activeGenerations.values()) {
+    if (gen.userId === userId && gen.running) {
+      return gen;
+    }
+  }
+  return null;
+}
 
 router.get('/generate/status', (req, res) => {
-  res.json(generationStatus);
+  const userId = req.user?.id || 1;
+  const requestedSessionId = req.query.sessionId ? parseInt(req.query.sessionId) : null;
+
+  let gen = null;
+  if (requestedSessionId && activeGenerations.has(requestedSessionId)) {
+    gen = activeGenerations.get(requestedSessionId);
+  } else {
+    gen = getUserActiveGeneration(userId);
+  }
+
+  if (gen) {
+    return res.json({
+      running: gen.running,
+      current: gen.current,
+      total: gen.total,
+      message: gen.message,
+      sessionId: gen.sessionId,
+    });
+  }
+
+  const dbSession = db.prepare(
+    "SELECT * FROM generation_sessions WHERE (user_id = ? OR user_id IS NULL) AND status = 'RUNNING' ORDER BY id DESC LIMIT 1"
+  ).get(userId);
+
+  if (dbSession) {
+    return res.json({
+      running: true,
+      current: 0,
+      total: dbSession.total_parts,
+      message: 'Geração em andamento...',
+      sessionId: dbSession.id,
+    });
+  }
+
+  const lastSession = db.prepare(
+    "SELECT * FROM generation_sessions WHERE (user_id = ? OR user_id IS NULL) ORDER BY id DESC LIMIT 1"
+  ).get(userId);
+
+  if (lastSession && lastSession.status !== 'RUNNING') {
+    return res.json({
+      running: false,
+      current: lastSession.status === 'DONE' ? lastSession.total_parts : 0,
+      total: lastSession.total_parts,
+      message: lastSession.status === 'DONE'
+        ? `Geração concluída com sucesso! ${lastSession.total_parts} planilhas prontas.`
+        : (lastSession.error_message || 'Geração finalizada'),
+      sessionId: lastSession.id,
+    });
+  }
+
+  res.json({
+    running: false,
+    current: 0,
+    total: 0,
+    message: '',
+    sessionId: null,
+  });
 });
 
 router.get('/generate/metrics', (req, res) => {
@@ -179,9 +238,10 @@ router.get('/generate/metrics', (req, res) => {
 
 router.get('/generate/history', (req, res) => {
   try {
+    const userId = req.user?.id || 1;
     const sessions = db.prepare(
-      'SELECT * FROM generation_sessions ORDER BY id DESC LIMIT 50'
-    ).all();
+      'SELECT * FROM generation_sessions WHERE (user_id = ? OR user_id IS NULL) ORDER BY id DESC LIMIT 50'
+    ).all(userId);
     res.json(sessions);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -189,8 +249,11 @@ router.get('/generate/history', (req, res) => {
 });
 
 router.post('/generate', (req, res) => {
-  if (generationStatus.running) {
-    return res.status(409).json({ error: 'Já existe uma geração em andamento' });
+  const userId = req.user?.id || 1;
+  const currentGen = getUserActiveGeneration(userId);
+
+  if (currentGen && currentGen.running) {
+    return res.status(409).json({ error: 'Você já possui uma geração em andamento' });
   }
 
   const partes = parseInt(req.body.partes) || 106;
@@ -209,26 +272,27 @@ router.post('/generate', (req, res) => {
   }
 
   const session = db.prepare(
-    'INSERT INTO generation_sessions (prefix, total_numbers, total_parts, numbers_per_part, status) VALUES (?, ?, ?, ?, ?)'
-  ).run(prefixo, totalLeads, partes, contatosPorParte, 'RUNNING');
+    'INSERT INTO generation_sessions (user_id, prefix, total_numbers, total_parts, numbers_per_part, status) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(userId, prefixo, totalLeads, partes, contatosPorParte, 'RUNNING');
 
   const sessionId = session.lastInsertRowid;
-
   const prefixoText = prefixo === 'ambos' ? '86 e 87' : prefixo === 'todos' ? '84, 85, 86 e 87' : prefixo;
 
-  generationStatus = {
+  const genState = {
+    sessionId,
+    userId,
     running: true,
     current: 0,
     total: partes,
     message: `Sorteando ${totalLeads.toLocaleString()} números únicos (Prefixo ${prefixoText})...`,
-    sessionId,
+    child: null,
   };
+  activeGenerations.set(sessionId, genState);
 
   res.json({ success: true, message: 'Geração de leads iniciada', sessionId });
 
   const { fork } = require('child_process');
   const scriptPath = path.join(__dirname, '../../generate_leads.js');
-
   const sessionDir = path.join(SESSIONS_PATH, `session_${sessionId}`);
 
   const child = fork(scriptPath, [], {
@@ -242,24 +306,26 @@ router.post('/generate', (req, res) => {
     }
   });
 
-  console.log(`[Files API] Geração #${sessionId} iniciada via processo filho (PID: ${child.pid})`);
+  genState.child = child;
+
+  console.log(`[Files API] Geração #${sessionId} iniciada para usuário #${userId} (PID: ${child.pid})`);
 
   child.on('message', (msg) => {
     if (msg.type === 'PROGRESS') {
-      generationStatus.current = msg.current;
-      generationStatus.total = msg.total;
-      generationStatus.message = msg.message;
+      genState.current = msg.current;
+      genState.total = msg.total;
+      genState.message = msg.message;
     }
   });
 
   child.on('exit', (code) => {
     console.log(`[Files API] Gerador #${sessionId} (PID: ${child.pid}) encerrado com código ${code}`);
-    generationStatus.running = false;
+    genState.running = false;
 
     if (code === 0) {
-      generationStatus.message = `Geração concluída com sucesso! ${partes} planilhas prontas.`;
+      genState.message = `Geração concluída com sucesso! ${partes} planilhas prontas.`;
     } else {
-      generationStatus.message = `Falha na geração (Código de erro: ${code})`;
+      genState.message = `Falha na geração (Código de erro: ${code})`;
 
       try {
         const s = db.prepare('SELECT status FROM generation_sessions WHERE id = ?').get(sessionId);
@@ -273,8 +339,8 @@ router.post('/generate', (req, res) => {
 
   child.on('error', (err) => {
     console.error('[Files API] Erro no processo filho do gerador:', err);
-    generationStatus.running = false;
-    generationStatus.message = `Falha na geração: ${err.message}`;
+    genState.running = false;
+    genState.message = `Falha na geração: ${err.message}`;
     try {
       db.prepare("UPDATE generation_sessions SET status = 'ERROR', finished_at = datetime('now'), error_message = ? WHERE id = ?")
         .run(err.message, sessionId);
@@ -352,8 +418,10 @@ router.post('/generate/move-to-files/:sessionId', (req, res) => {
 });
 
 router.post('/generate/clear', (req, res) => {
-  if (generationStatus.running) {
-    return res.status(400).json({ error: 'Não é possível zerar o banco de dados enquanto uma geração está em andamento.' });
+  for (const gen of activeGenerations.values()) {
+    if (gen.running) {
+      return res.status(400).json({ error: 'Não é possível zerar o banco de dados enquanto há gerações em andamento.' });
+    }
   }
 
   try {

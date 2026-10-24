@@ -7,6 +7,7 @@ const db = new Database(DB_PATH);
 
 db.pragma('journal_mode = WAL');
 db.pragma('synchronous = NORMAL');
+db.pragma('busy_timeout = 30000');
 db.pragma('cache_size = 1000');
 
 function initializeDatabase() {
@@ -174,6 +175,12 @@ function initializeDatabase() {
     db.exec("ALTER TABLE organization_invites ADD COLUMN target_email TEXT;");
   }
   db.exec("CREATE INDEX IF NOT EXISTS idx_invites_email ON organization_invites(target_email);");
+
+  const genColumns = db.prepare("PRAGMA table_info(generation_sessions)").all();
+  if (!genColumns.some(c => c.name === 'user_id')) {
+    db.exec("ALTER TABLE generation_sessions ADD COLUMN user_id INTEGER;");
+  }
+  db.exec("CREATE INDEX IF NOT EXISTS idx_generation_sessions_user ON generation_sessions(user_id);");
 
   const crypto = require('crypto');
   const existingJwt = db.prepare('SELECT value FROM settings WHERE key = ?').get('jwt_secret');
