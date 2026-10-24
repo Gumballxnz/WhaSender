@@ -447,7 +447,7 @@ export default function Dashboard() {
                 cx={pt.x}
                 cy={pt.y}
                 r="3.5"
-                fill="#000000"
+                fill="var(--bg-card)"
                 stroke="var(--accent)"
                 strokeWidth="2"
               />

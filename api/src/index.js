@@ -26,7 +26,7 @@ const { FILES_PATH } = require('./utils/paths');
 const { cleanPhone, toJid } = require('./utils/phone');
 
 const app = express();
-app.set('trust proxy', 1);
+app.set('trust proxy', true);
 app.use(cors());
 const server = createServer(app);
 

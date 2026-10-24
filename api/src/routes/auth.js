@@ -290,7 +290,7 @@ router.post('/refresh', (req, res) => {
 
     const user = db.prepare('SELECT id, username, email, name FROM users WHERE id = ?').get(payload.id);
     if (!user) {
-      res.clearCookie('refreshToken', { path: '/api/auth' });
+      res.clearCookie('refreshToken', { path: '/' });
       return res.status(401).json({ error: 'Usuário não existe mais' });
     }
 
@@ -312,17 +312,17 @@ router.post('/refresh', (req, res) => {
       role: activeRole,
     };
 
-    const accessToken = jwt.sign(tokenPayload, db.getJwtSecret(), { expiresIn: '15m' });
+    const accessToken = jwt.sign(tokenPayload, db.getJwtSecret(), { expiresIn: '7d' });
 
-    res.json({ accessToken, expiresIn: 900, organization: membership });
+    res.json({ accessToken, expiresIn: 7 * 86400, organization: membership });
   } catch (err) {
-    res.clearCookie('refreshToken', { path: '/api/auth' });
+    res.clearCookie('refreshToken', { path: '/' });
     return res.status(403).json({ error: 'Refresh token inválido ou expirado' });
   }
 });
 
 router.post('/logout', (req, res) => {
-  res.clearCookie('refreshToken', { path: '/api/auth' });
+  res.clearCookie('refreshToken', { path: '/' });
   res.json({ message: 'Logout realizado com sucesso' });
 });
 

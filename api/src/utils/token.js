@@ -11,20 +11,20 @@ function issueAuthTokens(res, user, organizationId, role) {
     role: role || 'member',
   };
 
-  const accessToken = jwt.sign(tokenPayload, db.getJwtSecret(), { expiresIn: '15m' });
-  const refreshToken = jwt.sign({ ...tokenPayload, type: 'refresh' }, db.getJwtRefreshSecret(), { expiresIn: '7d' });
+  const accessToken = jwt.sign(tokenPayload, db.getJwtSecret(), { expiresIn: '7d' });
+  const refreshToken = jwt.sign({ ...tokenPayload, type: 'refresh' }, db.getJwtRefreshSecret(), { expiresIn: '30d' });
 
   if (res && typeof res.cookie === 'function') {
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/api/auth',
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      path: '/',
     });
   }
 
-  return { accessToken, expiresIn: 900 };
+  return { accessToken, expiresIn: 7 * 86400 };
 }
 
 module.exports = { issueAuthTokens };
