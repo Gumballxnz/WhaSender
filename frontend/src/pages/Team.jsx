@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   Users, UserPlus, Shield, Trash2, Copy, Check,
-  Clock, X, Loader2, Building2, Crown, Search, Mail, Send
+  Clock, X, Loader2, Building2, Crown, Search, Mail, Send,
+  Link as LinkIcon, CheckCircle2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
@@ -17,6 +18,9 @@ export default function Team() {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
 
+  const [emailConfig, setEmailConfig] = useState({ email_provider: 'disabled' });
+  const [deliveryMethod, setDeliveryMethod] = useState('email');
+
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('member');
@@ -31,6 +35,8 @@ export default function Team() {
 
   const isOwnerOrAdmin = currentOrganization?.role === 'owner' || currentOrganization?.role === 'admin';
   const isOwner = currentOrganization?.role === 'owner';
+  const hasEmailProvider = emailConfig?.email_provider && emailConfig.email_provider !== 'disabled';
+  const providerLabel = emailConfig?.email_provider === 'resend' ? 'Resend' : 'SMTP';
 
   const loadMembers = async () => {
     try {
@@ -58,9 +64,25 @@ export default function Team() {
     }
   };
 
+  const loadEmailConfig = async () => {
+    try {
+      const { data } = await api.get('/settings/email');
+      setEmailConfig(data || { email_provider: 'disabled' });
+      if (data?.email_provider && data.email_provider !== 'disabled') {
+        setDeliveryMethod('email');
+      } else {
+        setDeliveryMethod('link');
+      }
+    } catch {
+      setEmailConfig({ email_provider: 'disabled' });
+      setDeliveryMethod('link');
+    }
+  };
+
   useEffect(() => {
     loadMembers();
     loadInvites();
+    loadEmailConfig();
   }, [currentOrganization?.id]);
 
   const handleRoleChange = async (memberId, newRole) => {
@@ -90,26 +112,30 @@ export default function Team() {
   const handleCreateInvite = async (e) => {
     e.preventDefault();
     if (!inviteEmail.trim()) {
-      toast.error('Informe o e-mail do convidado');
+      toast.error('Informe o e-mail do colaborador');
       return;
     }
 
     setGeneratingInvite(true);
     try {
+      const shouldSend = hasEmailProvider && deliveryMethod === 'email';
       const { data } = await api.post('/organizations/invites', {
         email: inviteEmail.trim(),
         role: inviteRole,
         expiresInDays: inviteDays,
+        sendEmail: shouldSend,
       });
 
       const url = `${window.location.origin}/invite?code=${data.code}`;
       setGeneratedLink(url);
-      setEmailDispatched(data.emailSent || false);
+      setEmailDispatched(Boolean(data.emailSent));
 
       if (data.emailSent) {
-        toast.success(`Convite gerado e enviado para ${inviteEmail.trim()}`);
+        toast.success(`Convite com link de ativação enviado para ${inviteEmail.trim()} via ${providerLabel}!`);
+      } else if (data.emailError) {
+        toast.error(`Falha no envio do e-mail: ${data.emailError}. Você pode copiar o link direto.`);
       } else {
-        toast.success('Convite gerado. Compartilhe o link de acesso.');
+        toast.success('Link de convite gerado com sucesso!');
       }
       loadInvites();
     } catch (err) {
@@ -427,20 +453,27 @@ export default function Team() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div style={{
                   padding: '14px',
-                  background: 'rgba(37, 211, 102, 0.1)',
-                  border: '1px solid rgba(37, 211, 102, 0.25)',
+                  background: emailDispatched ? 'rgba(37, 211, 102, 0.1)' : 'rgba(255, 255, 255, 0.04)',
+                  border: `1px solid ${emailDispatched ? 'rgba(37, 211, 102, 0.25)' : 'var(--border-default)'}`,
                   borderRadius: 'var(--radius-md)',
                   fontSize: '13px',
                   color: 'var(--text-primary)',
                   lineHeight: 1.5
                 }}>
                   {emailDispatched ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Check size={16} color="var(--accent)" />
-                      <span>E-mail de convite enviado com sucesso! Você também pode compartilhar o link direto abaixo:</span>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                      <CheckCircle2 size={16} color="var(--accent)" style={{ marginTop: '2px', flexShrink: 0 }} />
+                      <div>
+                        Convite com link de ativação enviado para <strong>{inviteEmail}</strong> via <strong>{providerLabel}</strong>!
+                        <span style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          O colaborador poderá definir a senha e acessar a equipe diretamente pelo e-mail recebido.
+                        </span>
+                      </div>
                     </div>
                   ) : (
-                    <span>Convite gerado. Compartilhe o link abaixo com o colaborador convidado:</span>
+                    <span>
+                      Link de ativação gerado para <strong>{inviteEmail}</strong>. Envie este link para o colaborador definir a senha e ingressar:
+                    </span>
                   )}
                 </div>
 
@@ -466,7 +499,10 @@ export default function Team() {
                   <button
                     type="button"
                     className="btn btn-secondary"
-                    onClick={() => setShowInviteModal(false)}
+                    onClick={() => {
+                      setShowInviteModal(false);
+                      setGeneratedLink('');
+                    }}
                   >
                     Concluir
                   </button>
@@ -485,10 +521,53 @@ export default function Team() {
                     required
                     autoFocus
                   />
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    Se um provedor de e-mail estiver configurado, o convite será despachado automaticamente por e-mail.
-                  </span>
                 </div>
+
+                {hasEmailProvider ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 600 }}>Forma de Envio</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <button
+                        type="button"
+                        className={`btn ${deliveryMethod === 'email' ? 'btn-primary' : 'btn-secondary'}`}
+                        onClick={() => setDeliveryMethod('email')}
+                        style={{ padding: '9px 12px', justifyContent: 'center', fontSize: '12px', gap: '6px' }}
+                      >
+                        <Mail size={14} />
+                        <span>Enviar por E-mail</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn ${deliveryMethod === 'link' ? 'btn-primary' : 'btn-secondary'}`}
+                        onClick={() => setDeliveryMethod('link')}
+                        style={{ padding: '9px 12px', justifyContent: 'center', fontSize: '12px', gap: '6px' }}
+                      >
+                        <LinkIcon size={14} />
+                        <span>Apenas Gerar Link</span>
+                      </button>
+                    </div>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      {deliveryMethod === 'email'
+                        ? `O e-mail com link de ativação será disparado via ${providerLabel} diretamente para a caixa de entrada.`
+                        : 'O link de ativação será gerado na tela para envio manual (WhatsApp, etc.).'}
+                    </span>
+                  </div>
+                ) : (
+                  <div style={{
+                    padding: '10px 12px',
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '12px',
+                    color: 'var(--text-secondary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <LinkIcon size={14} color="var(--accent)" />
+                    <span>Provedor de e-mail desativado. O convite será gerado em link para envio manual.</span>
+                  </div>
+                )}
 
                 <div className="input-group">
                   <label>Função no Time</label>
@@ -529,8 +608,13 @@ export default function Team() {
                     className="btn btn-primary"
                     disabled={generatingInvite || !inviteEmail.trim()}
                   >
-                    {generatingInvite ? <Loader2 size={14} className="spin" /> : <Send size={14} />}
-                    <span>Gerar & Enviar Convite</span>
+                    {generatingInvite ? (
+                      <><Loader2 size={14} className="spin" /> Gerando...</>
+                    ) : hasEmailProvider && deliveryMethod === 'email' ? (
+                      <><Send size={14} /> Enviar Convite por E-mail</>
+                    ) : (
+                      <><LinkIcon size={14} /> Gerar Link de Convite</>
+                    )}
                   </button>
                 </div>
               </form>

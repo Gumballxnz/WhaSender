@@ -231,7 +231,7 @@ router.post('/invites', async (req, res) => {
     return res.status(403).json({ error: 'Apenas administradores podem gerar convites' });
   }
 
-  const { email, role: rawRole, expiresInDays } = req.body;
+  const { email, role: rawRole, expiresInDays, sendEmail: shouldSendEmail } = req.body;
   if (!email || !isValidEmail(email)) {
     return res.status(400).json({ error: 'O e-mail do convidado é inválido ou ausente' });
   }
@@ -265,19 +265,24 @@ router.post('/invites', async (req, res) => {
   let emailSent = false;
   let emailError = null;
 
-  try {
-    const inviter = db.prepare('SELECT name FROM users WHERE id = ?').get(req.user.id);
-    const emailResult = await sendInvitationEmail({
-      to: cleanEmail,
-      organizationName: ctx.name,
-      invitedByName: inviter?.name || req.user.name,
-      role,
-      inviteUrl,
-      expiresAt,
-    });
-    emailSent = emailResult?.success || false;
-  } catch (err) {
-    emailError = err.message;
+  if (shouldSendEmail !== false) {
+    try {
+      const inviter = db.prepare('SELECT name FROM users WHERE id = ?').get(req.user.id);
+      const emailResult = await sendInvitationEmail({
+        to: cleanEmail,
+        organizationName: ctx.name,
+        invitedByName: inviter?.name || req.user.name,
+        role,
+        inviteUrl,
+        expiresAt,
+      });
+      emailSent = emailResult?.success || false;
+      if (!emailResult?.success && emailResult?.reason) {
+        emailError = emailResult.reason;
+      }
+    } catch (err) {
+      emailError = err.message;
+    }
   }
 
   res.json({

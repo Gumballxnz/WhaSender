@@ -146,7 +146,10 @@ function Invite() {
           <div className="login-logo-icon" style={{ background: 'var(--accent-gradient)' }}>
             <UserPlus size={26} color="#fff" />
           </div>
-          <h1>Convite de Equipe</h1>
+          <h1>Ativar Acesso & Definir Senha</h1>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+            Complete seus dados e crie sua senha para acessar a equipe
+          </p>
         </div>
 
         <div style={{
@@ -315,9 +318,9 @@ function Invite() {
               style={{ marginTop: '8px' }}
             >
               {submitting ? (
-                <><Loader2 size={18} className="spin" /> Criando conta...</>
+                <><Loader2 size={18} className="spin" /> Ativando acesso...</>
               ) : (
-                'Criar Conta e Ingressar'
+                'Definir Senha e Ingressar'
               )}
             </button>
 
