@@ -32,6 +32,8 @@ export default function Team() {
 
   const [confirmRemoveMember, setConfirmRemoveMember] = useState(null);
   const [removingMember, setRemovingMember] = useState(false);
+  const [confirmRevokeInvite, setConfirmRevokeInvite] = useState(null);
+  const [revokingInvite, setRevokingInvite] = useState(false);
 
   const isOwnerOrAdmin = currentOrganization?.role === 'owner' || currentOrganization?.role === 'admin';
   const isOwner = currentOrganization?.role === 'owner';
@@ -146,12 +148,16 @@ export default function Team() {
   };
 
   const handleRevokeInvite = async (inviteId) => {
+    setRevokingInvite(true);
     try {
       await api.delete(`/organizations/invites/${inviteId}`);
-      toast.success('Convite revogado');
+      toast.success('Convite revogado com sucesso');
+      setConfirmRevokeInvite(null);
       loadInvites();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Erro ao revogar convite');
+    } finally {
+      setRevokingInvite(false);
     }
   };
 
@@ -418,7 +424,7 @@ export default function Team() {
                             <button
                               type="button"
                               className="btn btn-secondary btn-sm"
-                              onClick={() => handleRevokeInvite(inv.id)}
+                              onClick={() => setConfirmRevokeInvite(inv)}
                               style={{ color: 'var(--error)' }}
                               title="Revogar convite"
                             >
@@ -653,6 +659,42 @@ export default function Team() {
                 disabled={removingMember}
               >
                 {removingMember ? 'Removendo...' : 'Sim, Remover'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirmar Revogação de Convite */}
+      {confirmRevokeInvite && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: '420px' }}>
+            <div className="modal-header">
+              <h3 style={{ color: 'var(--error)' }}>Revogar Convite</h3>
+              <button className="modal-close" onClick={() => setConfirmRevokeInvite(null)}>
+                <X size={18} />
+              </button>
+            </div>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '20px' }}>
+              Tem certeza que deseja revogar o convite de <strong>{confirmRevokeInvite.target_email || confirmRevokeInvite.targetEmail || 'este colaborador'}</strong>? O link de acesso será cancelado imediatamente e não poderá mais ser usado.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setConfirmRevokeInvite(null)}
+                disabled={revokingInvite}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ background: 'var(--error)', borderColor: 'var(--error)' }}
+                onClick={() => handleRevokeInvite(confirmRevokeInvite.id)}
+                disabled={revokingInvite}
+              >
+                {revokingInvite ? <><Loader2 size={14} className="spin" /> Revogando...</> : 'Sim, Revogar Convite'}
               </button>
             </div>
           </div>
