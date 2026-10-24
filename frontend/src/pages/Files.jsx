@@ -159,7 +159,7 @@ export default function Files() {
   };
 
   return (
-    <div>
+    <div className="main-container">
       <div className="page-header">
         <h2>Gerenciamento de Arquivos</h2>
         <p>Upload de planilhas .xlsx para disparo</p>
@@ -175,49 +175,51 @@ export default function Files() {
 
           <div
             {...getRootProps()}
-            style={{
-              border: '2px dashed var(--border)',
-              borderRadius: '12px',
-              padding: '40px 20px',
-              textAlign: 'center',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              backgroundColor: isDragActive ? 'rgba(37, 211, 102, 0.05)' : 'transparent',
-              borderColor: isDragActive ? 'var(--accent)' : 'var(--border)',
-              marginTop: '10px'
-            }}
+            className={`dropzone-area ${isDragActive ? 'active' : ''}`}
+            style={{ marginTop: '10px' }}
           >
             <input {...getInputProps()} />
-            <div style={{ marginBottom: '15px', display: 'flex', justifyContent: 'center' }}>
-              <FolderOpen size={42} color="var(--accent)" />
+            <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'center' }}>
+              <div style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(37, 211, 102, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--accent)',
+              }}>
+                <FolderOpen size={32} />
+              </div>
             </div>
             {isDragActive ? (
-              <p style={{ color: 'var(--accent)', fontWeight: 600 }}>Solte os arquivos agora...</p>
+              <p style={{ color: 'var(--accent)', fontWeight: 600, fontSize: '15px' }}>Solte os arquivos agora...</p>
             ) : (
               <div>
-                <p style={{ fontSize: '16px', fontWeight: 500 }}>Arraste os arquivos .xlsx aqui</p>
-                <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '5px' }}>Ou clique para selecionar manualmente</p>
+                <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>Arraste os arquivos .xlsx aqui</p>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>Ou clique para selecionar manualmente</p>
               </div>
             )}
           </div>
 
           {files.length > 0 && (
-            <div style={{ marginTop: '20px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '15px' }}>
+            <div style={{ marginTop: '20px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '15px', border: '1px solid var(--border-default)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                 <span style={{ fontSize: '13px', fontWeight: 600 }}>{files.length} arquivos selecionados</span>
-                <button onClick={() => setFiles([])} className="mono" style={{ color: 'var(--danger)', fontSize: '12px', background: 'none', border: 'none', cursor: 'pointer' }}>Remover Todos</button>
+                <button onClick={() => setFiles([])} className="mono" style={{ color: 'var(--error)', fontSize: '12px', background: 'none', border: 'none', cursor: 'pointer' }}>Remover Todos</button>
               </div>
 
               <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '15px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 {files.map(f => (
-                  <div key={f.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '6px', fontSize: '13px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <FileText size={14} color="var(--accent)" />
-                      <span className="mono">{f.name}</span>
+                  <div key={f.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '6px', fontSize: '13px', border: '1px solid var(--border-default)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                      <FileText size={14} color="var(--accent)" style={{ flexShrink: 0 }} />
+                      <span className="mono" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
                       <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{(f.size / 1024).toFixed(1)} KB</span>
-                      <button onClick={(e) => { e.stopPropagation(); handleRemoveSelection(f.name); }} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '2px', display: 'flex' }}>
+                      <button onClick={(e) => { e.stopPropagation(); handleRemoveSelection(f.name); }} style={{ background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', padding: '2px', display: 'flex' }}>
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -225,10 +227,10 @@ export default function Files() {
                 ))}
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', padding: '10px', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', padding: '10px', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tamanho Total</span>
-                  <span style={{ fontSize: '16px', fontWeight: 700, color: isOverLimit ? 'var(--danger)' : 'var(--accent)' }}>{totalSizeMB} MB</span>
+                  <span style={{ fontSize: '16px', fontWeight: 700, color: isOverLimit ? 'var(--error)' : 'var(--accent)' }}>{totalSizeMB} MB</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'flex-end' }}>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Limite da VPS</span>
@@ -241,8 +243,8 @@ export default function Files() {
 
               {isOverLimit && (
                 <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.2)', display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <AlertTriangle size={18} color="var(--danger)" />
-                  <p style={{ fontSize: '12px', color: 'var(--danger)', lineHeight: 1.4 }}>
+                  <AlertTriangle size={18} color="var(--error)" />
+                  <p style={{ fontSize: '12px', color: 'var(--error)', lineHeight: 1.4 }}>
                     O tamanho total excede o limite permitido pela VPS ({vpsLimit.maxSize}). Remova alguns arquivos.
                   </p>
                 </div>
@@ -301,10 +303,10 @@ export default function Files() {
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {vpsFiles.length > 0 && (
                   <>
-                    <button onClick={handleDownloadZip} disabled={downloadingZip} className="btn" style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: 'rgba(59, 130, 246, 0.1)', color: 'var(--info)' }}>
+                    <button onClick={handleDownloadZip} disabled={downloadingZip} className="btn btn-secondary btn-sm" style={{ color: 'var(--info)', borderColor: 'rgba(59, 130, 246, 0.3)' }}>
                       {downloadingZip ? <><Loader2 size={14} className="spin" /> ZIP...</> : <><Archive size={14} /> Baixar ZIP</>}
                     </button>
-                    <button onClick={confirmClearAll} className="btn" style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}>
+                    <button onClick={confirmClearAll} className="btn btn-danger btn-sm">
                       <Trash2 size={14} /> Limpar Pasta
                     </button>
                   </>
@@ -320,12 +322,12 @@ export default function Files() {
                 <p style={{ fontSize: '14px' }}>Nenhum arquivo na pasta</p>
               </div>
             ) : (
-              <div className="table-container" style={{ border: 'none', background: 'none', padding: 0 }}>
+              <div className="table-container" style={{ border: '1px solid var(--border-default)', background: 'var(--bg-input)', borderRadius: 'var(--radius-md)' }}>
                 <table style={{ fontSize: '13px', tableLayout: 'fixed', width: '100%' }}>
                   <thead>
                     <tr>
                       <th style={{ textAlign: 'left' }}>Arquivo</th>
-                      <th style={{ textAlign: 'right', width: '80px', minWidth: '80px' }}>Ações</th>
+                      <th style={{ textAlign: 'right', width: '100px', minWidth: '100px' }}>Ações</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -334,13 +336,13 @@ export default function Files() {
                         <td className="mono" style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', textAlign: 'left' }} title={f.name}>
                           {f.name}
                         </td>
-                        <td style={{ textAlign: 'right', width: '80px', minWidth: '80px' }}>
-                          <div style={{ display: 'inline-flex', gap: '12px', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'nowrap' }}>
-                            <button onClick={() => handleDownload(f.name)} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: '6px', display: 'inline-flex' }} title="Baixar planilha">
-                              <Download size={15} />
+                        <td style={{ textAlign: 'right', width: '100px', minWidth: '100px' }}>
+                          <div style={{ display: 'inline-flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                            <button onClick={() => handleDownload(f.name)} className="btn-action-icon" title="Baixar planilha">
+                              <Download size={14} />
                             </button>
-                            <button onClick={() => confirmDeleteFile(f.name)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '6px', display: 'inline-flex' }} title="Excluir planilha">
-                              <Trash2 size={15} />
+                            <button onClick={() => confirmDeleteFile(f.name)} className="btn-action-icon-danger" title="Excluir planilha">
+                              <Trash2 size={14} />
                             </button>
                           </div>
                         </td>
@@ -367,8 +369,7 @@ export default function Files() {
             </p>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
               <button
-                className="btn"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                className="btn btn-secondary"
                 onClick={() => setShowConfirm({ show: false, type: '', data: null })}
               >
                 Cancelar
@@ -383,24 +384,6 @@ export default function Files() {
           </div>
         </div>
       )}
-
-      <style>{`
-        .spin { animation: spin 1s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-        .modal-overlay {
-          position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-          background: rgba(0,0,0,0.8); backdrop-filter: blur(4px);
-          display: flex; align-items: center; justify-content: center; z-index: 1000;
-        }
-        .modal-card {
-          background: var(--surface); border: 1px solid var(--border);
-          border-radius: 16px; padding: 24px; width: 100%; max-width: 400px;
-          box-shadow: 0 20px 40px rgba(0,0,0,0.4);
-          animation: modalIn 0.2s ease-out;
-        }
-        @keyframes modalIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-      `}</style>
     </div>
   );
 }

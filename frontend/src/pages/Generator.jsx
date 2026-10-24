@@ -215,7 +215,7 @@ export default function Generator() {
   };
 
   return (
-    <div>
+    <div className="main-container">
       <div className="page-header">
         <h2>Gerador de Leads</h2>
         <p>Gere números únicos de Moçambique com garantia anti-duplicata via banco de dados</p>
@@ -632,8 +632,7 @@ export default function Generator() {
             </p>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
               <button
-                className="btn"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                className="btn btn-secondary"
                 onClick={() => setShowClearConfirm(false)}
                 disabled={clearing}
               >
@@ -655,24 +654,6 @@ export default function Generator() {
           </div>
         </div>
       )}
-
-      <style>{`
-        .spin { animation: spin 1s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-        .modal-overlay {
-          position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-          background: rgba(0,0,0,0.8); backdrop-filter: blur(4px);
-          display: flex; align-items: center; justify-content: center; z-index: 1000;
-        }
-        .modal-card {
-          background: var(--bg-card); border: 1px solid var(--border-default);
-          border-radius: 12px; padding: 24px; max-width: 480px; width: 90%;
-          box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
-          animation: modalIn 0.2s ease-out;
-        }
-        @keyframes modalIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-      `}</style>
     </div>
   );
 }

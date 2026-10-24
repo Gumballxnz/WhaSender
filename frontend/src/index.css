@@ -15,6 +15,10 @@
   --border-default: #242a3d;
   --border-hover: #2f3752;
   --border-accent: rgba(37, 211, 102, 0.3);
+  --border: #242a3d;
+  --surface: #161b28;
+  --card: #161b28;
+  --danger: #ef4444;
 
   --accent: #25d366;
   --accent-hover: #1fba58;
@@ -244,6 +248,24 @@ html, body {
   width: 100%;
 }
 
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-header h2 {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--text-primary);
+  margin: 0 0 4px 0;
+}
+
+.page-header p {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
 .resend-header {
   display: flex;
   justify-content: space-between;
@@ -395,6 +417,111 @@ html, body {
   margin-bottom: 24px;
 }
 
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 22px 24px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+}
+
+.card:hover {
+  border-color: var(--border-hover);
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.card-icon.green {
+  color: var(--accent);
+  background: rgba(37, 211, 102, 0.12);
+}
+
+.card-icon.yellow {
+  color: var(--warning);
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.card-icon.blue {
+  color: var(--info);
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.card-icon.red {
+  color: var(--error);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.card-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+
+.card-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.dropzone,
+.dropzone-area {
+  border: 2px dashed var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 40px 20px;
+  text-align: center;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.015);
+  transition: all var(--transition-fast);
+}
+
+.dropzone:hover,
+.dropzone.active,
+.dropzone-area:hover,
+.dropzone-area.active {
+  border-color: var(--accent);
+  background: rgba(37, 211, 102, 0.04);
+}
+
 .resend-card {
   background: var(--bg-card);
   border: 1px solid var(--border-default);
@@ -525,6 +652,49 @@ html, body {
 .btn-icon:hover {
   color: var(--text-primary);
   border-color: var(--border-hover);
+}
+
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+.btn-action-icon {
+  background: rgba(37, 211, 102, 0.1);
+  border: 1px solid rgba(37, 211, 102, 0.25);
+  color: var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.btn-action-icon:hover {
+  background: rgba(37, 211, 102, 0.2);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.btn-action-icon-danger {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #f87171;
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.btn-action-icon-danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #ffffff;
 }
 
 .input-group {
@@ -717,7 +887,8 @@ tbody tr:hover {
   padding: 16px;
 }
 
-.modal {
+.modal,
+.modal-card {
   background: var(--bg-card);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);

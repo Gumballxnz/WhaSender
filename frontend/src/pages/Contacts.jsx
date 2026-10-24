@@ -70,7 +70,7 @@ function Contacts() {
   };
 
   return (
-    <div>
+    <div className="main-container">
       <div className="page-header">
         <h2>Contatos <span style={{ fontSize: '18px', color: 'var(--text-muted)', fontWeight: 500 }}>({contacts.length})</span></h2>
         <p>Gerenciar contatos e mapeamento de arquivos</p>

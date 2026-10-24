@@ -143,7 +143,7 @@ export default function Profile() {
 
   if (loading) {
     return (
-      <div>
+      <div className="main-container">
         <div className="page-header">
           <div className="skeleton" style={{ width: '180px', height: '28px', marginBottom: '8px' }} />
           <div className="skeleton" style={{ width: '280px', height: '16px' }} />
@@ -161,7 +161,7 @@ export default function Profile() {
   }
 
   return (
-    <div>
+    <div className="main-container">
       <div className="page-header">
         <h2>Meu Perfil</h2>
         <p>Gerencie seus dados pessoais, credenciais de acesso e organizações</p>
@@ -325,7 +325,7 @@ export default function Profile() {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{org.name}</span>
-                      <span className={`badge-${org.role || 'member'}`}>
+                      <span className={`badge badge-${org.role || 'member'}`}>
                         {org.role === 'owner' ? 'Proprietário' : org.role === 'admin' ? 'Administrador' : 'Membro'}
                       </span>
                       {isActive && (
