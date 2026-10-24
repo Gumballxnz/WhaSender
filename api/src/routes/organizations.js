@@ -212,6 +212,16 @@ router.get('/invites', (req, res) => {
     return res.status(403).json({ error: 'Apenas administradores podem ver convites pendentes' });
   }
 
+  db.prepare(`
+    DELETE FROM organization_invites
+    WHERE organization_id = ? AND EXISTS (
+      SELECT 1 FROM organization_members om
+      JOIN users mu ON om.user_id = mu.id
+      WHERE om.organization_id = organization_invites.organization_id
+        AND LOWER(mu.email) = LOWER(organization_invites.target_email)
+    )
+  `).run(ctx.id);
+
   const invites = db.prepare(`
     SELECT oi.id, oi.code, oi.target_email, oi.role, oi.created_at, oi.expires_at, u.name as created_by_name
     FROM organization_invites oi
@@ -363,13 +373,21 @@ router.post('/invites/:code/accept', (req, res) => {
     `).get(invite.organization_id, req.user.id);
 
     if (existing) {
+      db.prepare('DELETE FROM organization_invites WHERE id = ?').run(invite.invite_id);
       return res.status(400).json({ error: 'Você já faz parte desta organização' });
     }
 
-    db.prepare(`
-      INSERT INTO organization_members (organization_id, user_id, role)
-      VALUES (?, ?, ?)
-    `).run(invite.organization_id, req.user.id, invite.role);
+    db.transaction(() => {
+      db.prepare(`
+        INSERT INTO organization_members (organization_id, user_id, role)
+        VALUES (?, ?, ?)
+      `).run(invite.organization_id, req.user.id, invite.role);
+
+      db.prepare('DELETE FROM organization_invites WHERE id = ?').run(invite.invite_id);
+      if (user.email) {
+        db.prepare('DELETE FROM organization_invites WHERE organization_id = ? AND LOWER(target_email) = ?').run(invite.organization_id, user.email.toLowerCase());
+      }
+    })();
 
     return res.json({
       success: true,
@@ -413,6 +431,11 @@ router.post('/invites/:code/accept', (req, res) => {
       INSERT INTO organization_members (organization_id, user_id, role)
       VALUES (?, ?, ?)
     `).run(invite.organization_id, newUserId, invite.role);
+
+    db.prepare('DELETE FROM organization_invites WHERE id = ?').run(invite.invite_id);
+    if (cleanEmail) {
+      db.prepare('DELETE FROM organization_invites WHERE organization_id = ? AND LOWER(target_email) = ?').run(invite.organization_id, cleanEmail.toLowerCase());
+    }
 
     return newUserId;
   });
