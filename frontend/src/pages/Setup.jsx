@@ -87,10 +87,10 @@ function Setup() {
 
   return (
     <div className="login-page">
-      <div className="login-card" style={{ maxWidth: '480px', width: '92%' }}>
+      <div className="login-card">
         <div className="login-logo">
-          <div className="login-logo-icon" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
-            <Sparkles size={26} color="#fff" />
+          <div className="login-logo-icon">
+            <Sparkles size={26} color="#0a0d14" />
           </div>
           <h1>WhaSender Setup</h1>
         </div>

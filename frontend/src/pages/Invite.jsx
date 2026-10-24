@@ -141,15 +141,17 @@ function Invite() {
 
   return (
     <div className="login-page">
-      <div className="login-card" style={{ maxWidth: '460px', width: '92%' }}>
-        <div className="login-logo">
-          <div className="login-logo-icon" style={{ background: 'var(--accent-gradient)' }}>
-            <UserPlus size={26} color="#fff" />
+      <div className="login-card">
+        <div className="login-logo" style={{ flexDirection: 'column', textAlign: 'center', gap: '10px' }}>
+          <div className="login-logo-icon">
+            <UserPlus size={26} color="#0a0d14" />
           </div>
-          <h1>Ativar Acesso & Definir Senha</h1>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Complete seus dados e crie sua senha para acessar a equipe
-          </p>
+          <div>
+            <h1>Ativar Acesso & Definir Senha</h1>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+              Complete seus dados e crie sua senha para acessar a equipe
+            </p>
+          </div>
         </div>
 
         <div style={{
@@ -160,13 +162,13 @@ function Invite() {
           marginBottom: '20px',
           border: '1px solid var(--border-default)',
         }}>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Você foi convidado para participar de</p>
-          <h2 style={{ fontSize: '20px', color: 'var(--text-primary)', marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-            <Building2 size={20} color="var(--accent)" />
+          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Você foi convidado para participar de</p>
+          <h2 style={{ fontSize: '18px', color: 'var(--text-primary)', marginTop: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 600 }}>
+            <Building2 size={18} color="var(--accent)" />
             {inviteData?.organizationName}
           </h2>
           <div style={{ marginTop: '8px' }}>
-            <span className={`badge-${inviteData?.role === 'admin' ? 'admin' : 'member'}`}>
+            <span className={`badge badge-${inviteData?.role === 'admin' ? 'admin' : 'member'}`}>
               Função: {inviteData?.role === 'admin' ? 'Administrador' : 'Membro'}
             </span>
           </div>
@@ -178,14 +180,14 @@ function Invite() {
             alignItems: 'center',
             gap: '10px',
             padding: '10px 14px',
-            background: 'rgba(59, 130, 246, 0.1)',
-            border: '1px solid rgba(59, 130, 246, 0.25)',
+            background: 'rgba(37, 211, 102, 0.08)',
+            border: '1px solid rgba(37, 211, 102, 0.25)',
             borderRadius: 'var(--radius-md)',
             marginBottom: '16px',
-            fontSize: '12px',
+            fontSize: '12.5px',
             color: 'var(--text-primary)',
           }}>
-            <Mail size={16} color="var(--info)" style={{ flexShrink: 0 }} />
+            <Mail size={16} color="var(--accent)" style={{ flexShrink: 0 }} />
             <span>
               Convite exclusivo para: <strong>{inviteData.targetEmail}</strong>
             </span>
@@ -202,7 +204,7 @@ function Invite() {
             {inviteData?.targetEmail && user?.email && inviteData.targetEmail.toLowerCase() !== user.email.toLowerCase() ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: 'var(--radius-md)', fontSize: '13px', color: 'var(--text-primary)', lineHeight: 1.4 }}>
-                  <AlertCircle size={15} style={{ display: 'inline', verticalAlign: '-2px', marginRight: '6px' }} color="var(--danger)" />
+                  <AlertCircle size={15} style={{ display: 'inline', verticalAlign: '-2px', marginRight: '6px' }} color="var(--error)" />
                   Você está conectado como <strong>{user?.email}</strong>, mas este convite foi enviado exclusivamente para <strong>{inviteData.targetEmail}</strong>.
                 </div>
                 <button
@@ -248,7 +250,7 @@ function Invite() {
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="invite-fields-row">
               <div className="input-group">
                 <label htmlFor="inv-username">Usuário</label>
                 <input
@@ -265,7 +267,7 @@ function Invite() {
               </div>
 
               <div className="input-group">
-                <label htmlFor="inv-email">E-mail {inviteData?.targetEmail ? '(Bloqueado)' : ''}</label>
+                <label htmlFor="inv-email">E-mail</label>
                 <input
                   id="inv-email"
                   type="email"
@@ -275,7 +277,7 @@ function Invite() {
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={Boolean(inviteData?.targetEmail) || submitting}
                   readOnly={Boolean(inviteData?.targetEmail)}
-                  style={inviteData?.targetEmail ? { opacity: 0.8, cursor: 'not-allowed' } : {}}
+                  style={inviteData?.targetEmail ? { opacity: 0.75, cursor: 'not-allowed', background: 'rgba(255, 255, 255, 0.02)' } : {}}
                   autoComplete="email"
                   required
                 />

@@ -95,7 +95,7 @@ function Login() {
       <div className="login-card">
         <div className="login-logo">
           <div className="login-logo-icon">
-            <Zap size={28} color="#fff" />
+            <Zap size={26} color="#0a0d14" />
           </div>
           <h1>WhaSender</h1>
         </div>
